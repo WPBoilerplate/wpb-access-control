@@ -17,13 +17,13 @@
  * integer user ID as a string ("42") is the only value that survives the
  * sanitization pipeline unchanged.
  *
- * Admin UI AJAX support
- * ----------------------
- * get_options() returns an empty array — there is no static list of users to
- * render as checkboxes. The consuming plugin must implement its own AJAX
- * handler for the search-as-you-type UI. Use the static helpers:
- *   - WpUserProvider::search_users( $term )  — for live search results
- *   - WpUserProvider::get_users_by_ids( $ids ) — to reload previously saved users
+ * Admin UI
+ * --------
+ * get_options() returns an empty array — there is no static checkbox list.
+ * render_options() is overridden to emit an AJAX search input + selected-user
+ * tags. AccessControlUI registers the AJAX handler and enqueues the JS/CSS;
+ * consuming plugins call AccessControlUI::render() and enqueue_assets() and
+ * need no additional code for user search.
  *
  * @package WPBoilerplate\AccessControl
  * @since   1.1.0
@@ -111,29 +111,61 @@ class WpUserProvider extends AbstractProvider {
 		return (bool) apply_filters( 'wpb_access_control_wp_user_has_access', $result, $user_id, $selected_options );
 	}
 
+	/**
+	 * Render the user search input and selected-user tags.
+	 *
+	 * Called by AccessControlUI::render() — do not call directly.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string[] $selected_options User IDs (as strings) currently saved.
+	 * @param string   $form_id          Unique DOM ID scoping this panel instance.
+	 *
+	 * @return void
+	 */
+	public function render_options( array $selected_options, string $form_id ): void {
+		$saved_users = self::get_users_by_ids( $selected_options );
+		?>
+		<p class="description" style="margin-bottom:10px;">
+			<?php esc_html_e( 'Search by username or email and select one or more users. Administrators always have access regardless of this list.', 'wpb-access-control' ); ?>
+		</p>
+
+		<!-- Search input -->
+		<div class="wpb-ac-user-search-wrap">
+			<input type="text"
+			       class="wpb-ac-user-search regular-text"
+			       data-wpb-ac-form="<?php echo esc_attr( $form_id ); ?>"
+			       placeholder="<?php esc_attr_e( 'Search by username or email…', 'wpb-access-control' ); ?>"
+			       autocomplete="off">
+			<div class="wpb-ac-search-results" style="display:none;"></div>
+		</div>
+
+		<!-- Selected user tags -->
+		<div class="wpb-ac-selected-users">
+			<?php foreach ( $saved_users as $u ) : ?>
+				<span class="wpb-ac-user-tag" data-id="<?php echo esc_attr( $u['id'] ); ?>">
+					<span><?php echo esc_html( $u['display_name'] ); ?></span>
+					<span class="wpb-ac-user-tag-login">(<?php echo esc_html( $u['login'] ); ?>)</span>
+					<button type="button" class="wpb-ac-remove-user"
+					        aria-label="<?php esc_attr_e( 'Remove user', 'wpb-access-control' ); ?>">&times;</button>
+					<input type="hidden" name="ac_options[]" value="<?php echo esc_attr( $u['id'] ); ?>">
+				</span>
+			<?php endforeach; ?>
+		</div>
+		<?php
+	}
+
 	// -------------------------------------------------------------------------
-	// Admin UI helpers — static so consuming plugins can call them from their
-	// own AJAX handlers without needing a provider instance.
+	// Static helpers — used internally by AccessControlUI and available to
+	// consuming plugins that need to query users outside the standard flow.
 	// -------------------------------------------------------------------------
 
 	/**
 	 * Search for WordPress users by login, email, or display name.
 	 *
-	 * Use this inside your AJAX handler to power the live search UI.
-	 * Always verify nonce and capability before calling.
-	 *
-	 * Example AJAX handler in your consuming plugin:
-	 *
-	 *   add_action( 'wp_ajax_my_plugin_search_users', function() {
-	 *       check_ajax_referer( 'my_plugin_ac_nonce' );
-	 *       if ( ! current_user_can( 'manage_options' ) ) {
-	 *           wp_send_json_error( 'Forbidden', 403 );
-	 *       }
-	 *       $term = sanitize_text_field( $_GET['term'] ?? '' );
-	 *       wp_send_json_success(
-	 *           WpUserProvider::search_users( $term )
-	 *       );
-	 *   } );
+	 * AccessControlUI registers a wp_ajax_ handler that calls this method.
+	 * Consuming plugins do not need to create their own AJAX handler when
+	 * using AccessControlUI::render().
 	 *
 	 * @since 1.1.0
 	 *

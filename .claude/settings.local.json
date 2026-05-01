@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(php -l /Users/raftaar1191/local-sites/wordpress-7-0/app/public/wp-content/plugins/acrossai-mcp-manager/src/Admin/Settings.php)",
+      "Bash(php -l /Users/raftaar1191/local-sites/wordpress-7-0/app/public/wp-content/wpb-access-control/src/WpUserProvider.php)",
+      "Bash(php -l /Users/raftaar1191/local-sites/wordpress-7-0/app/public/wp-content/wpb-access-control/src/Admin/AccessControlUI.php)",
+      "Bash(php -l /Users/raftaar1191/local-sites/wordpress-7-0/app/public/wp-content/wpb-access-control/src/AbstractProvider.php)"
+    ]
+  }
+}

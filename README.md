@@ -155,6 +155,54 @@ An empty string `""` means **no restriction** — all users pass.
 
 ---
 
+## Admin UI
+
+The library ships a ready-to-use admin panel — type dropdown, role checkboxes, and user search-as-you-type with multi-select tags. Consuming plugins need three lines of integration code.
+
+### 1. Enqueue assets
+
+```php
+use WPBoilerplate\AccessControl\Admin\AccessControlUI;
+
+add_action( 'admin_enqueue_scripts', function() use ( $manager ) {
+    $ui = new AccessControlUI( $manager );
+    $ui->enqueue_assets();
+} );
+```
+
+### 2. Render the panel
+
+```php
+$ui->render( 'my-namespace', 'my-resource', [
+    'form_action'  => admin_url( 'admin.php?page=my-plugin&action=save_ac' ),
+    'nonce_action' => 'my_plugin_save_ac',
+    'submit_label' => __( 'Save', 'my-plugin' ),
+] );
+```
+
+The panel always renders a complete `<form>` element — including the nonce field and submit button. Provide `form_action` and `nonce_action` so the library can wire the form correctly.
+
+### 3. Handle save
+
+```php
+// In your admin_init POST handler:
+check_admin_referer( 'my_plugin_save_ac' );
+$json = AccessControlUI::extract_posted_config( $_POST );
+AccessControlTable::update( 'my-namespace', 'my-resource', $json );
+```
+
+`extract_posted_config()` reads `ac_type` and `ac_options[]` from the posted data and returns a sanitized JSON string (or `''` for "everyone"). It does not verify a nonce — that is the caller's responsibility.
+
+### Overriding the asset URL
+
+The library auto-detects its asset URL from `WP_CONTENT_DIR`/`WP_CONTENT_URL`. If your layout is unusual (symlinked vendor, non-standard paths), override it:
+
+```php
+$ui->set_assets_url( plugins_url( 'vendor/wpboilerplate/wpb-access-control/assets', __FILE__ ) );
+```
+
+---
+
 ## Registering a custom provider
 
 ```php
