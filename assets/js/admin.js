@@ -23,8 +23,52 @@
 		if ( panel.dataset.wpbAcBound ) { return; }
 		panel.dataset.wpbAcBound = '1';
 
+		var form       = panel.querySelector( '.wpb-ac-form' );
+		var formAjaxUrl = form ? form.getAttribute( 'data-wpb-ac-ajax-url' ) : '';
+		var noticeBox  = panel.querySelector( '.wpb-ac-notice' );
+		var submitBtn  = form ? form.querySelector( '[type="submit"]' ) : null;
 		var typeSelect = panel.querySelector( '.wpb-ac-type-select' );
 		var optRows    = panel.querySelectorAll( '.wpb-ac-options-row' );
+
+		function getSubmitLabel() {
+			if ( ! submitBtn ) { return ''; }
+			return 'value' in submitBtn ? submitBtn.value : submitBtn.textContent;
+		}
+
+		function setSubmitLabel( label ) {
+			if ( ! submitBtn ) { return; }
+			if ( 'value' in submitBtn ) {
+				submitBtn.value = label;
+				return;
+			}
+			submitBtn.textContent = label;
+		}
+
+		function showNotice( type, message ) {
+			if ( ! noticeBox ) { return; }
+			noticeBox.className = 'wpb-ac-notice wpb-ac-notice-' + type;
+			noticeBox.textContent = message;
+			noticeBox.style.display = 'block';
+		}
+
+		function clearNotice() {
+			if ( ! noticeBox ) { return; }
+			noticeBox.style.display = 'none';
+			noticeBox.textContent = '';
+			noticeBox.className = 'wpb-ac-notice';
+		}
+
+		function setSavingState( saving ) {
+			if ( ! submitBtn ) { return; }
+			submitBtn.disabled = saving;
+			setSubmitLabel( saving
+				? ( i18n.saving || 'Saving…' )
+				: ( submitBtn.dataset.wpbAcLabel || i18n.save || 'Save Access Control' ) );
+		}
+
+		if ( submitBtn && ! submitBtn.dataset.wpbAcLabel ) {
+			submitBtn.dataset.wpbAcLabel = getSubmitLabel();
+		}
 
 		/* ── Type-select toggle ─────────────────────────────────────────── */
 		function applyToggle() {
@@ -50,6 +94,45 @@
 			typeSelect.addEventListener( 'change', applyToggle );
 		}
 
+		if ( form ) {
+			form.addEventListener( 'submit', function ( e ) {
+				e.preventDefault();
+				clearNotice();
+				setSavingState( true );
+
+				fetch( formAjaxUrl || ajaxUrl, {
+					method: 'POST',
+					body: new FormData( form ),
+					credentials: 'same-origin'
+				} )
+					.then( function ( response ) {
+						return response.json().catch( function () {
+							return {
+								success: false,
+								data: {
+									message: i18n.saveError || 'Unable to save access control.'
+								}
+							};
+						} );
+					} )
+					.then( function ( data ) {
+						var message = data && data.data && data.data.message
+							? data.data.message
+							: ( data && data.success
+								? ( i18n.saveSuccess || 'Access control saved.' )
+								: ( i18n.saveError || 'Unable to save access control.' ) );
+
+						showNotice( data && data.success ? 'success' : 'error', message );
+					} )
+					.catch( function () {
+						showNotice( 'error', i18n.saveError || 'Unable to save access control.' );
+					} )
+					.then( function () {
+						setSavingState( false );
+					} );
+			} );
+		}
+
 		/* ── User search ────────────────────────────────────────────────── */
 		var searchInput = panel.querySelector( '.wpb-ac-user-search' );
 		if ( ! searchInput ) { return; }
@@ -61,6 +144,7 @@
 		if ( ! resultsBox || ! selectedBox ) { return; }
 
 		var timer = null;
+		var searchSeq = 0;
 
 		function getSelectedIds() {
 			return Array.from( selectedBox.querySelectorAll( 'input[type="hidden"]' ) )
@@ -133,8 +217,12 @@
 		function doSearch( term ) {
 			if ( term.length < 2 ) {
 				resultsBox.style.display = 'none';
+				searchSeq++;
 				return;
 			}
+
+			searchSeq++;
+			var requestSeq = searchSeq;
 
 			resultsBox.innerHTML = '<div class="wpb-ac-search-no-results">' + escHtml( i18n.searching || 'Searching…' ) + '</div>';
 			resultsBox.style.display = 'block';
@@ -144,9 +232,15 @@
 				'&term=' + encodeURIComponent( term ) +
 				'&_ajax_nonce=' + encodeURIComponent( nonce );
 
-			fetch( url )
+			fetch( url, {
+				credentials: 'same-origin'
+			} )
 				.then( function ( r ) { return r.json(); } )
 				.then( function ( data ) {
+					if ( requestSeq !== searchSeq ) {
+						return;
+					}
+
 					if ( data && data.success ) {
 						renderResults( data.data );
 					} else {
@@ -154,7 +248,9 @@
 					}
 				} )
 				.catch( function () {
-					resultsBox.style.display = 'none';
+					if ( requestSeq === searchSeq ) {
+						resultsBox.style.display = 'none';
+					}
 				} );
 		}
 

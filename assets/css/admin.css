@@ -1,5 +1,23 @@
 /* wpb-access-control admin panel styles */
 
+/* ── Save notice ─────────────────────────────────────────────────────────── */
+
+.wpb-ac-panel .wpb-ac-notice {
+	margin: 0 0 12px;
+	padding: 10px 12px;
+	border-left: 4px solid #72aee6;
+	background: #fff;
+	box-shadow: 0 1px 1px rgba( 0, 0, 0, 0.04 );
+}
+
+.wpb-ac-panel .wpb-ac-notice-success {
+	border-left-color: #00a32a;
+}
+
+.wpb-ac-panel .wpb-ac-notice-error {
+	border-left-color: #d63638;
+}
+
 /* ── Search wrap ─────────────────────────────────────────────────────────── */
 
 .wpb-ac-panel .wpb-ac-user-search-wrap {

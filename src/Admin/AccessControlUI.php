@@ -19,19 +19,14 @@
  *          $ui->enqueue_assets();
  *      } );
  *
- * 3. Call render() wherever you want the panel (renders full <form> by default):
+ * 3. Call render() wherever you want the panel:
  *
  *      $ui->render( 'my-namespace', 'my-resource', [
- *          'form_action'  => admin_url( 'admin.php?page=my-plugin&action=save_ac' ),
- *          'nonce_action' => 'my_plugin_save_ac',
  *          'submit_label' => __( 'Save', 'my-plugin' ),
  *      ] );
  *
- * 4. In your POST save handler, extract the sanitized JSON and store it:
- *
- *      check_admin_referer( 'my_plugin_save_ac' );
- *      $json = \WPBoilerplate\AccessControl\Admin\AccessControlUI::extract_posted_config( $_POST );
- *      AccessControlTable::update( 'my-namespace', 'my-resource', $json );
+ * The library handles AJAX saves internally. Consuming plugins only need to
+ * instantiate the UI, enqueue assets, and render the panel.
  *
  * @package WPBoilerplate\AccessControl\Admin
  * @since   1.2.0
@@ -48,7 +43,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Renders the access-control admin panel and handles the user-search AJAX action.
+ * Renders the access-control admin panel and handles its AJAX actions.
  *
  * @since 1.2.0
  */
@@ -85,8 +80,7 @@ class AccessControlUI {
 	/**
 	 * Constructor.
 	 *
-	 * Registers the shared user-search AJAX action (idempotent — only once
-	 * per request even if multiple plugins instantiate AccessControlUI).
+	 * Stores the manager and ensures the shared AJAX actions are registered.
 	 *
 	 * @since 1.2.0
 	 *
@@ -94,12 +88,29 @@ class AccessControlUI {
 	 */
 	public function __construct( AccessControlManager $manager ) {
 		$this->manager = $manager;
+		self::bootstrap();
+	}
 
-		if ( ! self::$ajax_registered ) {
-			self::$ajax_registered = true;
-			add_action( 'wp_ajax_wpb_access_control_search_users', array( $this, 'ajax_search_users' ) );
-			add_action( 'wp_ajax_wpb_access_control_save', array( $this, 'ajax_save' ) );
+	/**
+	 * Register the shared AJAX callbacks for user search and saving.
+	 *
+	 * Call this during plugin bootstrap when the UI instance is created later
+	 * than `plugins_loaded` or only inside screen-specific callbacks. The
+	 * constructor calls this automatically, so plugins that instantiate the UI
+	 * once during bootstrap do not need a separate call.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
+	public static function bootstrap(): void {
+		if ( self::$ajax_registered ) {
+			return;
 		}
+
+		self::$ajax_registered = true;
+		add_action( 'wp_ajax_wpb_access_control_search_users', array( __CLASS__, 'ajax_search_users' ) );
+		add_action( 'wp_ajax_wpb_access_control_save', array( __CLASS__, 'ajax_save' ) );
 	}
 
 	/**
@@ -170,8 +181,10 @@ class AccessControlUI {
 			<!-- Inline notice shown after AJAX save (hidden until JS populates it). -->
 			<div class="wpb-ac-notice" style="display:none;" aria-live="polite"></div>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>"
-			      class="wpb-ac-form">
+			<form method="post"
+			      action=""
+			      class="wpb-ac-form"
+			      data-wpb-ac-ajax-url="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>">
 
 				<!-- Library-owned save action and nonce — consumer sets neither. -->
 				<input type="hidden" name="action"       value="wpb_access_control_save">
@@ -272,9 +285,14 @@ class AccessControlUI {
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonce'   => wp_create_nonce( 'wpb_access_control_search_users' ),
 				'i18n'    => array(
-					'searching' => __( 'Searching…', 'wpb-access-control' ),
-					'noResults' => __( 'No users found.', 'wpb-access-control' ),
+					'searching'   => __( 'Searching…', 'wpb-access-control' ),
+					'noResults'   => __( 'No users found.', 'wpb-access-control' ),
 					'placeholder' => __( 'Search by username or email…', 'wpb-access-control' ),
+					'remove'      => __( 'Remove user', 'wpb-access-control' ),
+					'saving'      => __( 'Saving…', 'wpb-access-control' ),
+					'save'        => __( 'Save Access Control', 'wpb-access-control' ),
+					'saveSuccess' => __( 'Access control saved.', 'wpb-access-control' ),
+					'saveError'   => __( 'Unable to save access control.', 'wpb-access-control' ),
 				),
 			)
 		);
@@ -284,14 +302,10 @@ class AccessControlUI {
 	 * Extract and return a sanitized access-control JSON string from POST data.
 	 *
 	 * Reads ac_type and ac_options[] from the supplied array (pass $_POST).
-	 * Does NOT verify a nonce — that remains the caller's responsibility.
+	 * Used internally by ajax_save(), but remains public so consuming plugins
+	 * can reuse the same extraction logic in custom save flows when needed.
 	 * Does NOT call sanitize_key() on options; AccessControlTable::sanitize()
 	 * (called internally by update()) handles that to avoid double-processing.
-	 *
-	 * Usage:
-	 *   check_admin_referer( 'my_nonce_action' );
-	 *   $json = AccessControlUI::extract_posted_config( $_POST );
-	 *   AccessControlTable::update( $ns, $key, $json );
 	 *
 	 * @since 1.2.0
 	 *
@@ -329,7 +343,7 @@ class AccessControlUI {
 	 *
 	 * @return void
 	 */
-	public function ajax_search_users(): void {
+	public static function ajax_search_users(): void {
 		check_ajax_referer( 'wpb_access_control_search_users' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
@@ -341,6 +355,84 @@ class AccessControlUI {
 		$results = WpUserProvider::search_users( $term, 10 );
 
 		wp_send_json_success( $results );
+	}
+
+	/**
+	 * Handle wp_ajax_wpb_access_control_save.
+	 *
+	 * Verifies the library-owned nonce, validates the target namespace + key,
+	 * then persists the extracted config through AccessControlTable::update().
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
+	public static function ajax_save(): void {
+		check_ajax_referer( 'wpb_access_control_save', 'wpb_ac_nonce' );
+
+		$user_id = get_current_user_id();
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Forbidden', 'wpb-access-control' ) ), 403 );
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$namespace = isset( $_POST['wpb_ac_ns'] ) ? sanitize_text_field( wp_unslash( $_POST['wpb_ac_ns'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$key = isset( $_POST['wpb_ac_key'] ) ? sanitize_text_field( wp_unslash( $_POST['wpb_ac_key'] ) ) : '';
+
+		if ( '' === $namespace || '' === $key ) {
+			wp_send_json_error( array( 'message' => __( 'Missing access-control target.', 'wpb-access-control' ) ), 400 );
+		}
+
+		if ( strlen( $namespace ) > AccessControlTable::NAMESPACE_LENGTH || strlen( $key ) > AccessControlTable::KEY_LENGTH ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid access-control target.', 'wpb-access-control' ) ), 400 );
+		}
+
+		/**
+		 * Filter whether the current request may save access control for a target.
+		 *
+		 * Use this to restrict which namespaces/keys a specific admin screen is
+		 * allowed to manage, especially when multiple plugins use this library.
+		 *
+		 * @since 1.2.0
+		 *
+		 * @param bool   $can_save  Whether the save is allowed. Default true.
+		 * @param string $namespace Resource namespace from the request.
+		 * @param string $key       Resource key from the request.
+		 * @param int    $user_id   Current WordPress user ID.
+		 */
+		$can_save = (bool) apply_filters( 'wpb_access_control_can_save', true, $namespace, $key, $user_id );
+
+		if ( ! $can_save ) {
+			wp_send_json_error( array( 'message' => __( 'Not permitted to save this access control target.', 'wpb-access-control' ) ), 403 );
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$access_control = self::extract_posted_config( $_POST );
+		$updated        = AccessControlTable::update( $namespace, $key, $access_control );
+
+		if ( ! $updated ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to save access control.', 'wpb-access-control' ) ), 500 );
+		}
+
+		/**
+		 * Fires after access control is saved successfully via the built-in UI.
+		 *
+		 * @since 1.2.0
+		 *
+		 * @param string $namespace      Saved resource namespace.
+		 * @param string $key            Saved resource key.
+		 * @param string $access_control Stored JSON string, or '' for everyone.
+		 * @param int    $user_id        Current WordPress user ID.
+		 */
+		do_action( 'wpb_access_control_saved', $namespace, $key, $access_control, $user_id );
+
+		wp_send_json_success(
+			array(
+				'message' => __( 'Access control saved.', 'wpb-access-control' ),
+			)
+		);
 	}
 
 	// -------------------------------------------------------------------------
@@ -369,7 +461,7 @@ class AccessControlUI {
 		$content_dir = wp_normalize_path( untrailingslashit( WP_CONTENT_DIR ) );
 		$content_url = untrailingslashit( WP_CONTENT_URL );
 
-		if ( str_starts_with( $pkg_root, $content_dir ) ) {
+		if ( 0 === strpos( $pkg_root, $content_dir ) ) {
 			$relative = substr( $pkg_root, strlen( $content_dir ) );
 			return set_url_scheme( $content_url . $relative . '/assets' );
 		}
