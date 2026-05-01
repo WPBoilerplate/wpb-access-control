@@ -230,6 +230,7 @@ add_action( 'wpb_access_control_denied', function( $user_id, $namespace, $key, $
 | Provider ID | Class | Description |
 |-------------|-------|-------------|
 | `wp_role` | `WpRoleProvider` | Restricts by WordPress user role. Administrator excluded from options (always bypassed). |
+| `wp_user` | `WpUserProvider` | Restricts to a specific list of WordPress users, selected by username or email via AJAX search. Supports multiple users. |
 
 ### `WpRoleProvider` filters
 
@@ -237,6 +238,70 @@ add_action( 'wpb_access_control_denied', function( $user_id, $namespace, $key, $
 |--------|-------------|
 | `wpb_access_control_wp_role_options` | Modify the list of selectable role options |
 | `wpb_access_control_wp_role_has_access` | Override the final role-based access decision |
+
+### `WpUserProvider`
+
+Allows the site administrator to pick one or more specific WordPress users by
+searching for their username or email. The search happens via AJAX in the
+consuming plugin's admin UI — the library provides the data layer.
+
+**JSON config format:**
+
+```json
+{ "type": "wp_user", "options": ["1", "42", "7"] }
+```
+
+Options contain **user IDs stored as strings**. IDs survive the
+`sanitize_key()` pass that `AccessControlTable::sanitize()` applies to all
+option values; email addresses would not.
+
+**Static helpers for your AJAX handler:**
+
+```php
+use WPBoilerplate\AccessControl\WpUserProvider;
+
+// Live search — call from your wp_ajax_ handler.
+$results = WpUserProvider::search_users( 'jane' );
+// Returns: [['id'=>'5','login'=>'jane','email'=>'jane@example.com','display_name'=>'Jane Doe'], ...]
+
+// Hydrate saved IDs back into display data for the settings page.
+$users = WpUserProvider::get_users_by_ids( ['5', '42'] );
+```
+
+**Wiring up the AJAX search in your consuming plugin:**
+
+```php
+// Register the AJAX action (admin only).
+add_action( 'wp_ajax_my_plugin_search_users', function () {
+    check_ajax_referer( 'my_plugin_ac_nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Forbidden', 403 );
+    }
+    $term    = sanitize_text_field( wp_unslash( $_GET['term'] ?? '' ) );
+    $results = WpUserProvider::search_users( $term );
+    wp_send_json_success( $results );
+} );
+```
+
+**Saving the selected users from your admin form:**
+
+```php
+// $user_ids is an array of user IDs from the submitted form.
+$user_ids = array_map( 'absint', (array) ( $_POST['allowed_users'] ?? [] ) );
+$options  = array_map( 'strval', $user_ids );
+
+AccessControlTable::update(
+    'my-namespace',
+    'my-resource',
+    wp_json_encode( [ 'type' => 'wp_user', 'options' => $options ] )
+);
+```
+
+**`WpUserProvider` filters:**
+
+| Filter | Description |
+|--------|-------------|
+| `wpb_access_control_wp_user_has_access` | Override the final per-user access decision |
 
 ---
 

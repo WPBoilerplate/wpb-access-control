@@ -58,6 +58,12 @@ src/
   WpRoleProvider.php        Built-in provider: restricts by WordPress user role.
                              Administrator role excluded (always bypassed in manager).
 
+  WpUserProvider.php        Built-in provider: restricts to specific WordPress users.
+                             Admin selects users by username/email via AJAX search.
+                             Supports multiple users. Stores user IDs as strings.
+                             Provides static helpers search_users() and
+                             get_users_by_ids() for consuming plugin AJAX handlers.
+
 README.md                   Usage documentation for consuming plugins.
 AGENTS.md                   This file.
 composer.json               Package manifest.
@@ -177,6 +183,31 @@ Every consuming plugin's `composer.json` must include:
 
 ---
 
+## Built-in providers
+
+| Provider ID | Class | Since | Description |
+|-------------|-------|-------|-------------|
+| `wp_role` | `WpRoleProvider` | 1.0.0 | Restricts by WordPress user role. |
+| `wp_user` | `WpUserProvider` | 1.1.0 | Restricts to specific users, multi-select, AJAX search. |
+
+### `WpUserProvider` — storage rules
+
+- Options are **user IDs stored as strings** (`"42"`, `"1"`), not usernames or emails.
+  - Reason: `AccessControlTable::sanitize()` runs `sanitize_key()` on every option.
+    Email addresses contain `@` and `.` which that function strips. Numeric ID strings
+    (`"42"`) survive unchanged.
+- `get_options()` returns `[]` — there is no static option list. The admin UI must
+  implement AJAX search and store the selected IDs directly.
+- Two static helpers allow consuming plugins to power their AJAX UI without needing
+  a provider instance:
+  - `WpUserProvider::search_users( string $search, int $limit = 10 ): array`
+  - `WpUserProvider::get_users_by_ids( string[] $ids ): array`
+- Both helpers return `[['id'=>string, 'login'=>string, 'email'=>string, 'display_name'=>string], ...]`.
+- The consuming plugin is responsible for: registering the AJAX action, verifying the
+  nonce, checking `manage_options`, and calling the static helpers.
+
+---
+
 ## Key invariants for agents
 
 - **`AccessControlManager` has no REST hooks.** Do not add `rest_pre_dispatch` or any other WP action/filter inside this class. Route matching and enforcement belong in the consuming plugin.
@@ -189,3 +220,4 @@ Every consuming plugin's `composer.json` must include:
 - **`delete_all_for_namespace()` is for uninstall only.** Calling it during normal operation will erase all rules for that namespace permanently.
 - **The table is per-site on multisite.** Uses `$wpdb->prefix` — each sub-site has its own table. Network-wide rules must be handled by the consuming plugin.
 - **`maybe_create_table()` must be called on both activation AND `plugins_loaded`.** Activation alone misses library version upgrades deployed without plugin reactivation.
+- **`WpUserProvider` stores IDs, not usernames/emails.** Never save email or login as option values — they are mangled by `sanitize_key()` in the storage pipeline.
