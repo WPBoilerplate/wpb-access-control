@@ -314,13 +314,17 @@ class AccessControlUI {
 	 *
 	 * @param array $post Raw POST data (typically $_POST).
 	 *
-	 * @return string Sanitized JSON string, or '' for "everyone / no restriction".
+	 * @return string Sanitized JSON string, or '' for "no access added by admin".
 	 */
 	public static function extract_posted_config( array $post ): string {
-		$ac_type = isset( $post['ac_type'] ) ? sanitize_key( wp_unslash( $post['ac_type'] ) ) : 'everyone';
+		$ac_type = isset( $post['ac_type'] ) ? sanitize_key( wp_unslash( $post['ac_type'] ) ) : '';
 
-		if ( '' === $ac_type || 'everyone' === $ac_type ) {
+		if ( '' === $ac_type ) {
 			return '';
+		}
+
+		if ( 'everyone' === $ac_type ) {
+			return wp_json_encode( array( 'type' => 'everyone', 'options' => array() ) ) ?: '';
 		}
 
 		$ac_options = array();
