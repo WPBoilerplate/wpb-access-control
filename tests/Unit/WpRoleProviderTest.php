@@ -62,7 +62,7 @@ final class WpRoleProviderTest extends TestCase {
 	// get_options()
 	// -------------------------------------------------------------------------
 
-	public function test_get_options_excludes_administrator_role(): void {
+	public function test_get_options_includes_all_roles_including_administrator(): void {
 		Functions\when( 'get_editable_roles' )->justReturn(
 			array(
 				'administrator' => array( 'name' => 'Administrator' ),
@@ -76,10 +76,10 @@ final class WpRoleProviderTest extends TestCase {
 		$options = $this->provider()->get_options();
 
 		$ids = array_column( $options, 'id' );
-		$this->assertNotContains( 'administrator', $ids );
+		$this->assertContains( 'administrator', $ids );
 		$this->assertContains( 'editor', $ids );
 		$this->assertContains( 'subscriber', $ids );
-		$this->assertCount( 2, $options );
+		$this->assertCount( 3, $options );
 	}
 
 	public function test_get_options_returns_id_and_label_keys_for_each_role(): void {
@@ -97,14 +97,16 @@ final class WpRoleProviderTest extends TestCase {
 		);
 	}
 
-	public function test_get_options_returns_empty_when_only_administrator_exists(): void {
+	public function test_get_options_returns_administrator_when_only_administrator_exists(): void {
 		Functions\when( 'get_editable_roles' )->justReturn(
 			array( 'administrator' => array( 'name' => 'Administrator' ) )
 		);
 		Functions\when( 'translate_user_role' )->returnArg();
 		Filters\expectApplied( 'wpb_access_control_wp_role_options' )->andReturnFirstArg();
 
-		$this->assertSame( array(), $this->provider()->get_options() );
+		$options = $this->provider()->get_options();
+		$this->assertCount( 1, $options );
+		$this->assertSame( 'administrator', $options[0]['id'] );
 	}
 
 	public function test_get_options_returns_empty_when_no_editable_roles_exist(): void {
