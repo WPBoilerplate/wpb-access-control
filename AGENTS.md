@@ -12,7 +12,7 @@
 | Type            | `library`                                          |
 | PHP NS root     | `WPBoilerplate\AccessControl\`                     |
 | PSR-4 root      | `src/`                                             |
-| Current version | `1.0.0` (dev-main)                                 |
+| Current version | `3.0.0` (dev-main)                                 |
 | Min PHP         | 7.4                                                |
 | Min WP          | 5.9                                                |
 | License         | GPL-2.0-or-later                                   |
@@ -25,7 +25,7 @@
 Answers one question: **"Does this user have access to this resource?"**
 
 The library:
-- Owns a standalone `{prefix}wpb_access_control` database table
+- Owns a standalone `{prefix}wpb_access_control` database table (BerlinDB-managed)
 - Provides a provider registry (WordPress roles built-in; extensible for any back-end)
 - Exposes `AccessControlManager::user_has_access(int $user_id, string $namespace, string $key): bool`
 
@@ -43,13 +43,8 @@ All of that is the consuming plugin's responsibility.
 
 ```
 src/
-  AccessControlTable.php       Custom DB table: {prefix}wpb_access_control.
-                                CRUD helpers, sanitization, object-cache integration.
-                                Exposes target-length constants used by AJAX save validation.
-                                Consuming plugins call maybe_create_table() on
-                                activation and plugins_loaded.
-
   AccessControlManager.php     Provider registry + user_has_access().
+                                Owns a RuleQuery instance; exposes get_query().
                                 No REST hooks. No fetcher. No mapper.
                                 Consuming plugin decides when/where to call it.
 
@@ -65,6 +60,21 @@ src/
                                 Overrides render_options() to emit AJAX search input +
                                 multi-select user tags. Stores user IDs as strings.
                                 Static helpers: search_users(), get_users_by_ids().
+
+  Database/Rule/
+    RuleTable.php              BerlinDB Table subclass. Defines the {prefix}wpb_access_control
+                                schema (v3 flat rows), upgrade methods, and length constants.
+                                Table + hooks are registered automatically when RuleQuery
+                                is first instantiated.
+
+    RuleSchema.php             BerlinDB Schema subclass. Column definitions consumed by
+                                RuleQuery for filter/sort query vars.
+
+    RuleRow.php                BerlinDB Row subclass. Typed property declarations.
+
+    RuleQuery.php              Main CRUD entry point. Extends BerlinDB\Database\Query.
+                                Exposes: get_rule(), set_rule(), clear_rule(),
+                                purge_namespace(). Instantiating it registers RuleTable.
 
   Admin/
     AccessControlUI.php        Ready-to-use admin panel renderer. Ships CSS + JS.
@@ -88,35 +98,55 @@ composer.json                  Package manifest.
 ## Database table
 
 Table: `{prefix}wpb_access_control`
-Class: `WPBoilerplate\AccessControl\AccessControlTable`
-Current schema version: `1.0.0` (option: `wpb_access_control_db_version`)
+DB layer: **BerlinDB** (`berlindb/core ^2.0`)
+Schema version: `202605120001` (BerlinDB integer, stored in option `wpb_access_control_db_version`)
 
-| Column           | Type          | Notes                                              |
-|------------------|---------------|----------------------------------------------------|
-| `id`             | BIGINT PK AI  |                                                    |
-| `namespace`      | VARCHAR(100)  | Product-scoped prefix, e.g. `mcp`, `procureco/v1` |
-| `key`            | VARCHAR(255)  | Resource identifier within the namespace           |
-| `access_control` | TEXT          | JSON config or `''` (everyone)                     |
-| `created_at`     | DATETIME      | Set on INSERT                                      |
-| `updated_at`     | DATETIME      | Auto-updated on UPDATE                             |
+### Schema (v3 — flat rows)
 
-Unique constraint: `(namespace, key)` — one rule per resource.
+| Column                 | Type                  | Notes                                                   |
+|------------------------|-----------------------|---------------------------------------------------------|
+| `id`                   | BIGINT UNSIGNED PK AI |                                                         |
+| `namespace`            | VARCHAR(100) NOT NULL | Product-scoped prefix, e.g. `mcp`, `procureco/v1`       |
+| `key`                  | VARCHAR(255) NOT NULL | Resource identifier within the namespace                |
+| `access_control_key`   | VARCHAR(100) NOT NULL | Rule type slug — same for every row of a (ns,key) pair  |
+| `access_control_value` | VARCHAR(255) NOT NULL | One option per row (role slug, user ID string, or `''`) |
+| `created_at`           | DATETIME              | BerlinDB-managed on INSERT                              |
+| `updated_at`           | DATETIME              | BerlinDB-managed on UPDATE                              |
 
-### Public API
+Indexes:
+- `PRIMARY KEY (id)`
+- `UNIQUE KEY ns_key_value (namespace, key(191), access_control_value)`
+- `KEY ns_key (namespace, key(191))`
+
+### Rule storage convention
+
+| Logical state               | Rows in table                                                              |
+|-----------------------------|----------------------------------------------------------------------------|
+| No rule configured (`''`)   | **No rows** for that `(namespace, key)`                                    |
+| `everyone`                  | One row: `access_control_key='everyone'`, `access_control_value=''`        |
+| `wp_role` + `[editor,author]` | Two rows, both `access_control_key='wp_role'`; values `'editor'`, `'author'` |
+| `wp_user` + `["1","42"]`    | Two rows, both `access_control_key='wp_user'`; values `'1'`, `'42'`       |
+
+### RuleQuery public API
 
 | Method | Description |
 |--------|-------------|
-| `maybe_create_table()` | No-op unless stored version differs. Call on activation + plugins_loaded. |
-| `create_table()` | Runs dbDelta unconditionally. |
-| `get(ns, key)` | Returns JSON string or `''`. Result is object-cached. |
-| `update(ns, key, value)` | Upsert via INSERT … ON DUPLICATE KEY UPDATE. Sanitizes before storing. |
-| `delete(ns, key)` | Deletes one row and flushes its cache entry. |
-| `delete_all_for_namespace(ns)` | For plugin uninstall — removes all rows for a namespace. |
-| `sanitize(raw)` | Static. Validates JSON and returns clean string or `''`. |
+| `get_rule(ns, key): array` | Returns `['key'=>string, 'value'=>string[]]`; empty shape when no rows. |
+| `set_rule(ns, key, ac_key, ac_options): bool` | Atomically replaces existing rows. Sanitizes inputs. |
+| `clear_rule(ns, key): bool` | Deletes all rows for the pair. |
+| `purge_namespace(ns): int` | Deletes all rows for a namespace; use in uninstall hooks. Returns deleted count. |
 
-Constants:
-- `AccessControlTable::NAMESPACE_LENGTH` = `100`
-- `AccessControlTable::KEY_LENGTH` = `255`
+Constants (on `RuleTable`):
+- `RuleTable::NAMESPACE_LENGTH` = `100`
+- `RuleTable::KEY_LENGTH` = `255`
+
+### Table lifecycle
+
+BerlinDB's `RuleTable` registers an `admin_init` hook that runs `maybe_upgrade()`. Upgrades compare the stored option to `202605120001`. The first time the new library version runs:
+- If an old JSON-schema table exists → `upgrade_202605120001()` drops and recreates it.
+- If no table exists → BerlinDB creates it fresh.
+
+Consuming plugins no longer need to call `maybe_create_table()`. Instantiating `new RuleQuery()` in `plugins_loaded` is sufficient.
 
 ---
 
@@ -133,14 +163,15 @@ Constructor: `__construct( string $providers_filter = 'wpb_access_control_provid
 | `load_providers()` | Fires the providers filter and rebuilds the registry. Called on init:5 or immediately if init has fired. |
 | `get_providers()` | Returns `array<string, AbstractProvider>` keyed by provider ID. |
 | `get_provider(id)` | Returns one provider or null. |
-| `user_has_access(user_id, namespace, key)` | Core method. Reads from AccessControlTable and applies access hierarchy. |
+| `get_query()` | Returns the `RuleQuery` instance (for direct rule reads/writes). |
+| `user_has_access(user_id, namespace, key)` | Core method. Reads via `RuleQuery::get_rule()` and applies access hierarchy. |
 
 ### Access hierarchy
 
-1. `access_control` empty or `type = 'everyone'` → **allow**
+1. `access_control_key` empty or `'everyone'` → **allow**
 2. User has `manage_options` (administrator) → **always allow**
 3. User ID = 0 (unauthenticated) → **deny** + fires `wpb_access_control_denied`
-4. No provider registered for the configured type → **deny** + fires `wpb_access_control_denied`
+4. No provider registered for the configured key → **deny** + fires `wpb_access_control_denied`
 5. `provider->user_has_access()` returns false → **deny** + fires `wpb_access_control_denied`
 
 ### `wpb_access_control_denied` action
@@ -148,7 +179,7 @@ Constructor: `__construct( string $providers_filter = 'wpb_access_control_provid
 Fires on every denial (steps 3–5 above).
 
 ```php
-do_action( 'wpb_access_control_denied', int $user_id, string $namespace, string $key, array $ac_config );
+do_action( 'wpb_access_control_denied', int $user_id, string $namespace, string $key, string $ac_key, string[] $options );
 ```
 
 ---
@@ -157,7 +188,7 @@ do_action( 'wpb_access_control_denied', int $user_id, string $namespace, string 
 
 | Method | Required | Purpose |
 |--------|----------|---------|
-| `get_id(): string` | Yes | Unique machine-readable ID stored in JSON `type` field |
+| `get_id(): string` | Yes | Unique machine-readable ID stored as `access_control_key` |
 | `get_label(): string` | Yes | Human-readable label shown in admin UI dropdown |
 | `get_options(): array` | Yes | Returns `[['id'=>'slug','label'=>'Name'], ...]` for checkboxes |
 | `user_has_access(int $user_id, array $selected_options): bool` | Yes | Core access check |
@@ -190,6 +221,7 @@ Every consuming plugin's `composer.json` must include:
 ```json
 "require": {
     "automattic/jetpack-autoloader": "^2.0",
+    "berlindb/core": "^2.0",
     "wpboilerplate/wpb-access-control": "dev-main"
 },
 "config": {
@@ -211,9 +243,7 @@ Every consuming plugin's `composer.json` must include:
 ### `WpUserProvider` — storage rules
 
 - Options are **user IDs stored as strings** (`"42"`, `"1"`), not usernames or emails.
-  - Reason: `AccessControlTable::sanitize()` runs `sanitize_key()` on every option.
-    Email addresses contain `@` and `.` which that function strips. Numeric ID strings
-    (`"42"`) survive unchanged.
+  Reason: `sanitize_key()` strips `@` and `.` — email addresses would be corrupted.
 - `get_options()` returns `[]` — no static checkbox list.
 - `render_options()` emits the AJAX search input and selected-user tags.
   `AccessControlUI` registers the AJAX action and enqueues assets — consuming plugin
@@ -239,7 +269,7 @@ need zero UI code for access control.
 | `set_assets_url( string $url )` | Override auto-detected asset base URL. |
 | `render( string $ns, string $key, array $args )` | Render the panel. Always wraps in a `<form>` with library-owned AJAX save wiring. |
 | `enqueue_assets()` | Enqueue library CSS + JS. Call from `admin_enqueue_scripts`. |
-| `static extract_posted_config( array $post ): string` | Extract sanitized JSON from `$_POST`; used internally for AJAX save and reusable for custom flows. |
+| `static extract_posted_config( array $post ): array` | Extract config shape from `$_POST`; used internally and reusable for custom flows. |
 
 ### `$args` for `render()`
 
@@ -248,7 +278,7 @@ need zero UI code for access control.
 | `submit_label` | string | "Save Access Control" | Submit button label. |
 | `description` | string | Generic copy | Paragraph below heading. |
 
-### AJAX action
+### AJAX actions
 
 Action: `wpb_access_control_search_users` (shared, library-owned)
 Nonce: `wpb_access_control_search_users`
@@ -281,25 +311,25 @@ $ui->set_assets_url( plugins_url( 'vendor/wpboilerplate/wpb-access-control/asset
 
 ### AccessControlManager
 - **No REST hooks inside the manager.** `rest_pre_dispatch` and all enforcement belong in the consuming plugin.
-- **`user_has_access()` is the only entry point** for access decisions. Do not read from `AccessControlTable` directly in the manager.
+- **`user_has_access()` is the only entry point** for access decisions. Do not call `RuleQuery` directly inside the manager — use `$this->query`.
 - **Administrator bypass is unconditional.** The `manage_options` check in `user_has_access()` must not be removed or made configurable.
 - **Providers are loaded at `init` priority 5.** Third-party code must hook at priority 4 or earlier.
 - **Filter tag isolation is mandatory.** Never use the default `'wpb_access_control_providers'` tag in a product plugin.
 
-### AccessControlTable
-- **`update()` always sanitizes.** Do not call `sanitize()` separately before calling `update()`.
-- **Never write via raw `$wpdb`.** Always use `AccessControlTable::update()` so the object cache stays consistent.
-- **`delete_all_for_namespace()` is for uninstall only.**
+### Database (RuleQuery / RuleTable)
+- **`set_rule()` always sanitizes.** Do not call `sanitize_key()` separately before calling `set_rule()`.
+- **Never write via raw `$wpdb`.** Always use `RuleQuery::set_rule()` so BerlinDB's cache stays consistent.
+- **`purge_namespace()` is for uninstall only.**
 - **The table is per-site on multisite** (`$wpdb->prefix`). Network-wide rules must be handled by the consuming plugin.
-- **`maybe_create_table()` must be called on both activation AND `plugins_loaded`.**
+- **BerlinDB handles table creation and upgrades** via the `admin_init` hook registered by `RuleTable`. The consuming plugin only needs to instantiate `new AccessControlManager(...)` (which creates `new RuleQuery()`, which creates `new RuleTable()`).
 
 ### AccessControlUI
 - **Bootstrap AJAX handlers on requests that do not render the panel.** Either instantiate `AccessControlUI` once during plugin bootstrap or call `AccessControlUI::bootstrap()` early so `admin-ajax.php` requests have the shared callbacks registered.
 - **Shared AJAX actions** `wpb_access_control_search_users` and `wpb_access_control_save` are registered exactly once via the `$ajax_registered` static flag. Do not add duplicate registrations.
-- **The UI class owns its AJAX save path.** `ajax_save()` must persist through `AccessControlTable::update()`; consuming plugins do not need a separate save handler for the standard panel.
-- **Validate submitted targets before writing.** `ajax_save()` must reject empty or overlong namespace/key values using `AccessControlTable::NAMESPACE_LENGTH` and `AccessControlTable::KEY_LENGTH`.
+- **The UI class owns its AJAX save path.** `ajax_save()` must persist through `RuleQuery::set_rule()`; consuming plugins do not need a separate save handler for the standard panel.
+- **Validate submitted targets before writing.** `ajax_save()` must reject empty or overlong namespace/key values using `RuleTable::NAMESPACE_LENGTH` and `RuleTable::KEY_LENGTH`.
 - **Built-in save extensibility lives in hooks.** Use `wpb_access_control_can_save` to authorize a submitted namespace/key and `wpb_access_control_saved` for post-save side effects.
-- **`extract_posted_config()` does NOT call `sanitize_key()` on options** — `AccessControlTable::sanitize()` does that on `update()`. Avoid double-processing.
+- **`extract_posted_config()` does NOT call `sanitize_key()` on options** — `RuleQuery::set_rule()` / `normalize_input()` does that on write. Avoid double-processing.
 - **JS scopes by `data-wpb-ac-form` attribute, never `getElementById`.** Required so two panels can coexist on one page.
 - **Ignore stale live-search responses.** User search requests may return out of order; the active query must win.
 - **Asset URL auto-detection uses `WP_CONTENT_DIR`/`WP_CONTENT_URL`.** Call `set_assets_url()` when the package is in a non-standard location.
