@@ -67,6 +67,15 @@ class RuleQuery extends Query {
 	protected $cache_group = 'wpb_access_control';
 
 	/**
+	 * Transient TTL in seconds (7 days).
+	 *
+	 * Transients auto-expire after this period. Any write operation (set_rule,
+	 * clear_rule, purge_namespace) invalidates the relevant transient
+	 * immediately so stale data is never served.
+	 */
+	const TRANSIENT_TTL = 604800;
+
+	/**
 	 * Static guard: ensures RuleTable is instantiated exactly once per request.
 	 * BerlinDB's Table registers $wpdb->wpb_access_control, which Query reads
 	 * via get_table_name() — so Table must exist before any Query is used.
@@ -112,6 +121,13 @@ class RuleQuery extends Query {
 	 * @return array{key: string, value: string[]}
 	 */
 	public function get_rule( string $namespace, string $key ): array {
+		$tk     = $this->transient_key( $namespace, $key );
+		$cached = get_transient( $tk );
+
+		if ( false !== $cached ) {
+			return $cached;
+		}
+
 		/** @var RuleRow[] $rows */
 		$rows = $this->query(
 			array(
@@ -124,19 +140,23 @@ class RuleQuery extends Query {
 		);
 
 		if ( empty( $rows ) ) {
-			return array( 'key' => '', 'value' => array() );
-		}
+			$result = array( 'key' => '', 'value' => array() );
+		} else {
+			$ac_key = (string) $rows[0]->access_control_key;
+			$values = array();
 
-		$ac_key = (string) $rows[0]->access_control_key;
-		$values = array();
-
-		foreach ( $rows as $row ) {
-			if ( '' !== $row->access_control_value ) {
-				$values[] = (string) $row->access_control_value;
+			foreach ( $rows as $row ) {
+				if ( '' !== $row->access_control_value ) {
+					$values[] = (string) $row->access_control_value;
+				}
 			}
+
+			$result = array( 'key' => $ac_key, 'value' => $values );
 		}
 
-		return array( 'key' => $ac_key, 'value' => $values );
+		set_transient( $tk, $result, self::TRANSIENT_TTL );
+
+		return $result;
 	}
 
 	/**
@@ -170,6 +190,7 @@ class RuleQuery extends Query {
 		$ac_options = $normalized['value'];
 
 		$this->purge_resource( $namespace, $key );
+		delete_transient( $this->transient_key( $namespace, $key ) );
 
 		if ( '' === $ac_key ) {
 			return true;
@@ -218,6 +239,7 @@ class RuleQuery extends Query {
 	 */
 	public function clear_rule( string $namespace, string $key ): bool {
 		$this->purge_resource( $namespace, $key );
+		delete_transient( $this->transient_key( $namespace, $key ) );
 		return true;
 	}
 
@@ -234,17 +256,25 @@ class RuleQuery extends Query {
 	 * @return int Number of rows deleted.
 	 */
 	public function purge_namespace( string $namespace ): int {
-		$ids = $this->query(
+		/** @var RuleRow[] $rows */
+		$rows = $this->query(
 			array(
 				'namespace' => $namespace,
 				'number'    => 0,
-				'fields'    => 'ids',
 			)
 		);
 
-		$count = 0;
-		foreach ( (array) $ids as $id ) {
-			if ( $this->delete_item( (int) $id ) ) {
+		$count    = 0;
+		$seen_tks = array();
+
+		foreach ( (array) $rows as $row ) {
+			$tk = $this->transient_key( $namespace, (string) $row->key );
+			if ( ! isset( $seen_tks[ $tk ] ) ) {
+				delete_transient( $tk );
+				$seen_tks[ $tk ] = true;
+			}
+
+			if ( $this->delete_item( (int) $row->id ) ) {
 				$count++;
 			}
 		}
@@ -279,6 +309,23 @@ class RuleQuery extends Query {
 		foreach ( (array) $ids as $id ) {
 			$this->delete_item( (int) $id );
 		}
+	}
+
+	/**
+	 * Build a deterministic WordPress transient key for a (namespace, key) pair.
+	 *
+	 * MD5 keeps the name well within WordPress's 172-character transient limit
+	 * regardless of how long the namespace or key is.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string $namespace Resource namespace.
+	 * @param string $key       Resource key.
+	 *
+	 * @return string Transient key, e.g. "wpbac_a1b2c3…".
+	 */
+	private function transient_key( string $namespace, string $key ): string {
+		return 'wpbac_' . md5( $namespace . '|' . $key );
 	}
 
 	/**

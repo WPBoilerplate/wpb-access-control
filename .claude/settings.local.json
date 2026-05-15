@@ -14,7 +14,18 @@
       "Bash(composer install *)",
       "Bash(vendor/bin/phpunit --testdox)",
       "Bash(gh run *)",
-      "Bash(./vendor/bin/phpunit *)"
+      "Bash(./vendor/bin/phpunit *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:packagist.org)",
+      "Bash(composer require *)",
+      "Bash(composer config *)",
+      "Bash(grep -n \"protected \\\\$\\\\|public \\\\$\\\\|abstract\\\\|function \" /Users/raftaar1191/local-sites/wordpress-7-0/app/public/wp-content/wpb-access-control/vendor/berlindb/core/src/Database/Table.php)",
+      "Bash(grep -n 'function __construct\\\\|function query\\\\|function add_item\\\\|function delete_item\\\\|function get_item\\\\b\\\\|protected $table_name\\\\|protected $table_schema\\\\|protected $item_shape\\\\|protected $cache_group' /Users/raftaar1191/local-sites/wordpress-7-0/app/public/wp-content/wpb-access-control/vendor/berlindb/core/src/Database/Query.php)",
+      "Bash(grep -n 'protected $prefix\\\\|private $prefix\\\\|$this->prefix ' /Users/raftaar1191/local-sites/wordpress-7-0/app/public/wp-content/wpb-access-control/vendor/berlindb/core/src/Database/Base.php)",
+      "Bash(grep -n '$prefix' /Users/raftaar1191/local-sites/wordpress-7-0/app/public/wp-content/wpb-access-control/vendor/berlindb/core/src/Database/Base.php)",
+      "Bash(composer run-script *)",
+      "Bash(composer dump-autoload *)"
     ]
   }
 }

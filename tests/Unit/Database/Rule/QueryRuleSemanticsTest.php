@@ -7,6 +7,11 @@
  * verify OUR aggregation/dispatch logic without needing a live database.
  *
  * Brain Monkey stubs WordPress functions.
+ *
+ * Transient stubs are NOT registered globally in setUp() because Brain Monkey
+ * (via Mockery) uses FIFO matching: a when() stub added in setUp would
+ * consume all calls before any expect() added in a test body gets a chance to
+ * match. Each test therefore registers only the stubs it needs.
  */
 
 namespace WPBoilerplate\AccessControl\Tests\Unit\Database\Rule;
@@ -58,11 +63,20 @@ final class QueryRuleSemanticsTest extends TestCase {
 		return $row;
 	}
 
+	/** Stub all three transient functions as no-ops (for tests that don\'t assert on them). */
+	private function stub_transients(): void {
+		Functions\when( 'get_transient' )->justReturn( false );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+	}
+
 	// -------------------------------------------------------------------------
 	// get_rule
 	// -------------------------------------------------------------------------
 
 	public function test_get_rule_returns_empty_shape_when_no_rows(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
 		$q->expects( $this->once() )
 		  ->method( 'query' )
@@ -74,6 +88,8 @@ final class QueryRuleSemanticsTest extends TestCase {
 	}
 
 	public function test_get_rule_assembles_multiple_option_rows(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
 		$q->expects( $this->once() )
 		  ->method( 'query' )
@@ -89,6 +105,8 @@ final class QueryRuleSemanticsTest extends TestCase {
 	}
 
 	public function test_get_rule_everyone_returns_empty_value_array(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
 		$q->expects( $this->once() )
 		  ->method( 'query' )
@@ -105,6 +123,8 @@ final class QueryRuleSemanticsTest extends TestCase {
 	// -------------------------------------------------------------------------
 
 	public function test_set_rule_empty_key_purges_and_writes_nothing(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
 		// purge_resource calls query() to get IDs, then delete_item() for each.
 		$q->expects( $this->once() )
@@ -124,6 +144,8 @@ final class QueryRuleSemanticsTest extends TestCase {
 	// -------------------------------------------------------------------------
 
 	public function test_set_rule_everyone_writes_one_sentinel_row(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
 		$q->method( 'query' )->willReturn( array() ); // purge finds nothing
 
@@ -145,6 +167,8 @@ final class QueryRuleSemanticsTest extends TestCase {
 	// -------------------------------------------------------------------------
 
 	public function test_set_rule_wp_role_writes_one_row_per_option(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
 		$q->method( 'query' )->willReturn( array() ); // purge finds nothing
 
@@ -162,6 +186,8 @@ final class QueryRuleSemanticsTest extends TestCase {
 	}
 
 	public function test_set_rule_purges_existing_rows_before_writing(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
 
 		$q->expects( $this->once() )
@@ -185,6 +211,8 @@ final class QueryRuleSemanticsTest extends TestCase {
 	// -------------------------------------------------------------------------
 
 	public function test_clear_rule_deletes_all_rows_for_resource(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
 		$q->expects( $this->once() )
 		  ->method( 'query' )
@@ -204,15 +232,31 @@ final class QueryRuleSemanticsTest extends TestCase {
 	// -------------------------------------------------------------------------
 
 	public function test_purge_namespace_deletes_only_namespace_rows(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
+
+		$row1            = new RuleRow();
+		$row1->id        = 10;
+		$row1->namespace = 'testns';
+		$row1->key       = 'res/a';
+
+		$row2            = new RuleRow();
+		$row2->id        = 11;
+		$row2->namespace = 'testns';
+		$row2->key       = 'res/b';
+
+		$row3            = new RuleRow();
+		$row3->id        = 12;
+		$row3->namespace = 'testns';
+		$row3->key       = 'res/a'; // duplicate key — transient deleted once
+
 		$q->expects( $this->once() )
 		  ->method( 'query' )
 		  ->with( $this->callback( function ( array $args ) {
-			  return 'testns' === $args['namespace']
-			      && 0 === $args['number']
-			      && 'ids' === $args['fields'];
+			  return 'testns' === $args['namespace'] && 0 === $args['number'];
 		  } ) )
-		  ->willReturn( array( 10, 11, 12 ) );
+		  ->willReturn( array( $row1, $row2, $row3 ) );
 
 		$q->expects( $this->exactly( 3 ) )
 		  ->method( 'delete_item' )
@@ -224,10 +268,91 @@ final class QueryRuleSemanticsTest extends TestCase {
 	}
 
 	public function test_purge_namespace_returns_zero_when_no_rows(): void {
+		$this->stub_transients();
+
 		$q = $this->make_query();
 		$q->method( 'query' )->willReturn( array() );
 		$q->expects( $this->never() )->method( 'delete_item' );
 
 		$this->assertSame( 0, $q->purge_namespace( 'empty-ns' ) );
+	}
+
+	// -------------------------------------------------------------------------
+	// Transient caching
+	// -------------------------------------------------------------------------
+
+	public function test_get_rule_returns_cached_value_without_querying_db(): void {
+		$cached = array( 'key' => 'wp_role', 'value' => array( 'editor' ) );
+
+		Functions\expect( 'get_transient' )->once()->andReturn( $cached );
+		Functions\when( 'set_transient' )->justReturn( true );
+
+		$q = $this->make_query();
+		$q->expects( $this->never() )->method( 'query' );
+
+		$result = $q->get_rule( 'ns', 'key' );
+
+		$this->assertSame( $cached, $result );
+	}
+
+	public function test_get_rule_populates_transient_on_cache_miss(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( false );
+		Functions\expect( 'set_transient' )->once()->with(
+			$this->isType( 'string' ),
+			array( 'key' => 'wp_role', 'value' => array( 'editor' ) ),
+			RuleQuery::TRANSIENT_TTL
+		);
+
+		$q = $this->make_query();
+		$q->method( 'query' )->willReturn( array( $this->make_row( 'wp_role', 'editor' ) ) );
+
+		$result = $q->get_rule( 'ns', 'key' );
+
+		$this->assertSame( array( 'key' => 'wp_role', 'value' => array( 'editor' ) ), $result );
+	}
+
+	public function test_set_rule_invalidates_transient(): void {
+		Functions\expect( 'delete_transient' )->atLeast()->once();
+
+		$q = $this->make_query();
+		$q->method( 'query' )->willReturn( array() );
+		$q->method( 'add_item' )->willReturn( 1 );
+
+		$result = $q->set_rule( 'ns', 'key', 'everyone', array() );
+
+		$this->assertTrue( $result );
+	}
+
+	public function test_clear_rule_invalidates_transient(): void {
+		Functions\expect( 'delete_transient' )->once();
+
+		$q = $this->make_query();
+		$q->method( 'query' )->willReturn( array() );
+
+		$result = $q->clear_rule( 'ns', 'key' );
+
+		$this->assertTrue( $result );
+	}
+
+	public function test_purge_namespace_invalidates_transient_once_per_unique_key(): void {
+		$row1            = new RuleRow();
+		$row1->id        = 1;
+		$row1->namespace = 'ns';
+		$row1->key       = 'same-key';
+
+		$row2            = new RuleRow();
+		$row2->id        = 2;
+		$row2->namespace = 'ns';
+		$row2->key       = 'same-key'; // duplicate key — transient deleted only once
+
+		Functions\expect( 'delete_transient' )->once();
+
+		$q = $this->make_query();
+		$q->method( 'query' )->willReturn( array( $row1, $row2 ) );
+		$q->method( 'delete_item' )->willReturn( true );
+
+		$count = $q->purge_namespace( 'ns' );
+
+		$this->assertSame( 2, $count );
 	}
 }
