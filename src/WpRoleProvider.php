@@ -60,13 +60,13 @@ class WpRoleProvider extends AbstractProvider {
 	 * @return array<int, array{id: string, label: string}>
 	 */
 	public function get_options(): array {
-		$editable_roles = get_editable_roles();
+		$editable_roles = \get_editable_roles();
 		$options        = array();
 
 		foreach ( $editable_roles as $role_slug => $role_data ) {
 			$options[] = array(
 				'id'    => $role_slug,
-				'label' => translate_user_role( $role_data['name'] ),
+				'label' => \translate_user_role( $role_data['name'] ),
 			);
 		}
 
