@@ -13,15 +13,16 @@ The library owns its own database table (managed by **BerlinDB**), ships WordPre
 1. [Requirements](#requirements)
 2. [Installation](#installation)
 3. [PHP Setup](#php-setup)
-4. [Checking Access](#checking-access)
-5. [React Component UI](#react-component-ui)
-6. [Reading & Writing Rules (PHP)](#reading--writing-rules-php)
-7. [REST API](#rest-api)
-8. [Events](#events)
-9. [Custom Providers](#custom-providers)
-10. [Built-in Providers](#built-in-providers)
-11. [Important Notes](#important-notes)
-12. [Database Table Reference](#database-table-reference)
+4. [Complete Integration Example](#complete-integration-example)
+5. [Checking Access](#checking-access)
+6. [React Component UI](#react-component-ui)
+7. [Reading & Writing Rules (PHP)](#reading--writing-rules-php)
+8. [REST API](#rest-api)
+9. [Events](#events)
+10. [Custom Providers](#custom-providers)
+11. [Built-in Providers](#built-in-providers)
+12. [Important Notes](#important-notes)
+13. [Database Table Reference](#database-table-reference)
 
 ---
 
@@ -74,27 +75,43 @@ Your `composer.json` must include Jetpack Autoloader:
 > fatal "class already declared" error. Jetpack Autoloader scans every
 > installed plugin, finds all copies, and loads only the newest one.
 
+In your plugin's main file, require the Jetpack Autoloader entry point —
+**not** the standard `vendor/autoload.php`:
+
+```php
+require_once __DIR__ . '/vendor/autoload_packages.php';
+```
+
 ---
 
 ## PHP Setup
 
 ### 1. Boot the manager
 
-Instantiate `AccessControlManager` early (e.g. in `plugins_loaded`). Always
-pass a **plugin-specific filter tag** to prevent your providers bleeding into
-other plugins that also use this library.
+Declare `$manager` at **file scope** (outside any closure) so every subsequent
+hook can capture it via `use`. Always pass a **plugin-specific filter tag** to
+prevent your providers bleeding into other plugins that also use this library.
 
 ```php
 use WPBoilerplate\AccessControl\AccessControlManager;
 
-add_action( 'plugins_loaded', function () {
-    $manager = new AccessControlManager( 'my_plugin_access_control_providers' );
-} );
+// File scope — available to all hooks below via `use ( $manager )`.
+$manager = new AccessControlManager( 'my_plugin_access_control_providers' );
 ```
 
 `AccessControlManager` owns a `RuleQuery` internally. Instantiating it
 registers `RuleTable` via BerlinDB, which creates or upgrades the
 `{prefix}wpb_access_control` table automatically on `admin_init`.
+
+> **Need to wait for other plugins first?** Use a reference capture instead:
+>
+> ```php
+> $manager = null;
+> add_action( 'plugins_loaded', function () use ( &$manager ) {
+>     $manager = new AccessControlManager( 'my_plugin_access_control_providers' );
+> } );
+> // All subsequent hooks must also use `&$manager`.
+> ```
 
 ### 2. Register the REST API
 
@@ -106,6 +123,100 @@ add_action( 'rest_api_init', function () use ( $manager ) {
     $manager->register_rest_api();
 } );
 ```
+
+---
+
+## Complete Integration Example
+
+Below is a self-contained `my-plugin.php` showing **all pieces wired together**:
+initialising the manager, registering the REST API, enqueueing the React UI,
+rendering the mount point, and checking access.
+
+```php
+<?php
+/**
+ * Plugin Name: My Plugin
+ */
+
+use WPBoilerplate\AccessControl\AccessControlManager;
+
+// 1. Require Composer autoloader.
+require_once __DIR__ . '/vendor/autoload_packages.php';
+
+// 2. Create the manager at file scope — captured by all hooks via `use ( $manager )`.
+$manager = new AccessControlManager( 'my_plugin_access_control_providers' );
+
+// 3. Expose the REST API.
+add_action( 'rest_api_init', function () use ( $manager ) {
+    $manager->register_rest_api();
+} );
+
+// 4. Register an admin settings page and capture its hook suffix.
+$settings_hook = null;
+add_action( 'admin_menu', function () use ( &$settings_hook ) {
+    // add_submenu_page() returns the hook suffix needed in admin_enqueue_scripts.
+    $settings_hook = add_submenu_page(
+        'options-general.php',         // parent menu slug
+        'My Plugin Settings',          // page title
+        'My Plugin',                   // menu title
+        'manage_options',              // capability
+        'my-plugin-settings',          // menu slug
+        function () {
+            echo '<div class="wrap">';
+            echo '<h1>My Plugin Settings</h1>';
+            // 5. Mount point — the React component attaches here automatically.
+            echo '<div id="wpb-access-control"></div>';
+            echo '</div>';
+        }
+    );
+} );
+
+// 6. Enqueue the built React UI assets only on the settings page.
+add_action( 'admin_enqueue_scripts', function ( string $hook ) use ( &$settings_hook ) {
+    if ( $hook !== $settings_hook ) {
+        return;
+    }
+
+    $asset_file = require __DIR__ . '/vendor/wpboilerplate/wpb-access-control/assets/build/index.asset.php';
+
+    wp_enqueue_script(
+        'wpb-ac-ui',
+        plugins_url( 'vendor/wpboilerplate/wpb-access-control/assets/build/index.js', __FILE__ ),
+        $asset_file['dependencies'],
+        $asset_file['version'],
+        true
+    );
+
+    wp_enqueue_style(
+        'wpb-ac-ui',
+        plugins_url( 'vendor/wpboilerplate/wpb-access-control/assets/build/index.css', __FILE__ ),
+        [],
+        $asset_file['version']
+    );
+
+    // Pass config to the component via window.wpbAcConfig.
+    wp_localize_script( 'wpb-ac-ui', 'wpbAcConfig', [
+        'namespace'   => 'my-plugin',
+        'resourceKey' => 'settings-page',
+        'restApiRoot' => get_rest_url(),
+        'nonce'       => wp_create_nonce( 'wp_rest' ),
+        'title'       => 'Access Control',
+        'saveLabel'   => 'Save',
+    ] );
+} );
+
+// 7. Gate a resource — call anywhere you need to check access.
+add_action( 'template_redirect', function () use ( $manager ) {
+    if ( is_page( 'protected' ) && ! $manager->user_has_access( get_current_user_id(), 'my-plugin', 'settings-page' ) ) {
+        wp_die( 'Access denied.', '', [ 'response' => 403 ] );
+    }
+} );
+```
+
+> **Key points:**
+> - `$manager` is declared once at file scope; all hooks capture it with `use ( $manager )`.
+> - `add_submenu_page()` (or `add_menu_page()`) returns the hook suffix — store it and compare in `admin_enqueue_scripts` to load assets only on your page.
+> - `vendor/autoload_packages.php` is the Jetpack Autoloader entry point, **not** the standard `vendor/autoload.php`.
 
 ---
 
@@ -160,11 +271,19 @@ they expose `options`, checkboxes are rendered automatically.
 The compiled assets live in `assets/build/`. The `.asset.php` file declares
 all required WordPress script dependencies so you never need to list them manually.
 
+> **Getting the right hook suffix**: `add_menu_page()` and `add_submenu_page()`
+> both **return** a hook suffix string (e.g. `"settings_page_my-plugin"`).
+> Capture that return value and compare it in `admin_enqueue_scripts` so assets
+> load only on your page.
+
 ```php
-add_action( 'admin_enqueue_scripts', function ( string $hook ) {
+// Capture the hook suffix when registering the page.
+$page_hook = add_submenu_page( /* … */ );
+
+add_action( 'admin_enqueue_scripts', function ( string $hook ) use ( $page_hook ) {
 
     // Only load on the page where you need it.
-    if ( 'my-plugin_page_settings' !== $hook ) {
+    if ( $hook !== $page_hook ) {
         return;
     }
 
