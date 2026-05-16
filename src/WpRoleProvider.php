@@ -60,6 +60,10 @@ class WpRoleProvider extends AbstractProvider {
 	 * @return array<int, array{id: string, label: string}>
 	 */
 	public function get_options(): array {
+		if ( ! function_exists( 'get_editable_roles' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/user.php';
+		}
+
 		$editable_roles = \get_editable_roles();
 		$options        = array();
 
