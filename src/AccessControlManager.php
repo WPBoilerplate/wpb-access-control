@@ -171,7 +171,7 @@ class AccessControlManager {
 	 *       $manager->register_rest_api();
 	 *   } );
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @return void
 	 */

@@ -317,7 +317,7 @@ class RuleQuery extends Query {
 	 * MD5 keeps the name well within WordPress's 172-character transient limit
 	 * regardless of how long the namespace or key is.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string $namespace Resource namespace.
 	 * @param string $key       Resource key.
