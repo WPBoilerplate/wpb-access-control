@@ -18,7 +18,7 @@
  *   $q->purge_namespace( 'procureco/v1' );
  *
  * @package WPBoilerplate\AccessControl\Database\Rule
- * @since   3.0.0
+ * @since   1.0.0
  */
 
 namespace WPBoilerplate\AccessControl\Database\Rule;
@@ -32,7 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Access-control rule query.
  *
- * @since 3.0.0
+ * @since 1.0.0
  */
 class RuleQuery extends Query {
 
@@ -89,7 +89,7 @@ class RuleQuery extends Query {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * @since 3.0.0
+	 * @since 1.0.0
 	 */
 	public function __construct() {
 		if ( ! self::$table_setup ) {
@@ -113,7 +113,7 @@ class RuleQuery extends Query {
 	 * Returns `['key' => '', 'value' => []]` when no rows exist for the pair,
 	 * which AccessControlManager treats as "no restriction configured".
 	 *
-	 * @since 3.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string $namespace Resource namespace.
 	 * @param string $key       Resource key within that namespace.
@@ -170,7 +170,7 @@ class RuleQuery extends Query {
 	 * Both $ac_key and each element of $ac_options are sanitized with
 	 * sanitize_key() before storage.
 	 *
-	 * @since 3.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string   $namespace  Resource namespace.
 	 * @param string   $key        Resource key.
@@ -230,7 +230,7 @@ class RuleQuery extends Query {
 	 *
 	 * After this call, get_rule() returns `['key' => '', 'value' => []]`.
 	 *
-	 * @since 3.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string $namespace Resource namespace.
 	 * @param string $key       Resource key.
@@ -249,7 +249,7 @@ class RuleQuery extends Query {
 	 * Call from your plugin's uninstall hook to remove only your rows without
 	 * affecting rules stored by other plugins.
 	 *
-	 * @since 3.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string $namespace Resource namespace to purge.
 	 *
@@ -289,7 +289,7 @@ class RuleQuery extends Query {
 	/**
 	 * Delete every row for a given (namespace, key) pair.
 	 *
-	 * @since 3.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string $namespace Resource namespace.
 	 * @param string $key       Resource key.
@@ -331,7 +331,7 @@ class RuleQuery extends Query {
 	/**
 	 * Sanitize and normalize the rule type and options before storing.
 	 *
-	 * @since 3.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string   $key     Rule type slug from user input.
 	 * @param string[] $options Option values from user input.

@@ -294,7 +294,7 @@ class RulesController extends WP_REST_Controller {
 		/**
 		 * Fires after a rule is saved successfully.
 		 *
-		 * @since 2.0.0 (originally on AccessControlUI; moved here in 1.0.0)
+		 * @since 1.0.0
 		 *
 		 * @param string   $namespace  Saved resource namespace.
 		 * @param string   $key        Saved resource key.

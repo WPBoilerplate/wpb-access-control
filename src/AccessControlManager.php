@@ -152,7 +152,7 @@ class AccessControlManager {
 	/**
 	 * Return the RuleQuery instance for direct rule reads and writes.
 	 *
-	 * @since 3.0.0
+	 * @since 1.0.0
 	 *
 	 * @return RuleQuery
 	 */
