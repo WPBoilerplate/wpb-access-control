@@ -39,7 +39,7 @@
  *   } );
  *
  * @package WPBoilerplate\AccessControl\RestApi
- * @since   4.0.0
+ * @since   1.0.0
  */
 
 namespace WPBoilerplate\AccessControl\RestApi;
@@ -59,7 +59,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * REST controller for the wpb-ac/v1 namespace.
  *
- * @since 4.0.0
+ * @since 1.0.0
  */
 class RulesController extends WP_REST_Controller {
 
@@ -70,7 +70,7 @@ class RulesController extends WP_REST_Controller {
 	private $manager;
 
 	/**
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param AccessControlManager $manager Provider registry instance.
 	 */
@@ -85,7 +85,7 @@ class RulesController extends WP_REST_Controller {
 	 * `rest_api_init`. Do not call directly unless you instantiate the
 	 * controller yourself.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @return void
 	 */
@@ -202,7 +202,7 @@ class RulesController extends WP_REST_Controller {
 	 * Returns true when the current user has `manage_options`. Use the
 	 * `wpb_access_control_rest_permission` filter to widen or narrow access.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param WP_REST_Request $request Current REST request.
 	 *
@@ -214,7 +214,7 @@ class RulesController extends WP_REST_Controller {
 		/**
 		 * Filter the base permission for all wpb-ac/v1 REST endpoints.
 		 *
-		 * @since 4.0.0
+		 * @since 1.0.0
 		 *
 		 * @param bool            $can     Whether the request is permitted. Default: current_user_can('manage_options').
 		 * @param WP_REST_Request $request The current REST request.
@@ -242,7 +242,7 @@ class RulesController extends WP_REST_Controller {
 	 * Returns the stored rule for the given namespace/key pair.
 	 * Returns `{"key":"","value":[]}` when no rule is configured.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param WP_REST_Request $request REST request.
 	 *
@@ -263,7 +263,7 @@ class RulesController extends WP_REST_Controller {
 	 * Creates or replaces the rule for the given namespace/key pair.
 	 * Responds with the rule as written.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param WP_REST_Request $request REST request.
 	 *
@@ -294,7 +294,7 @@ class RulesController extends WP_REST_Controller {
 		/**
 		 * Fires after a rule is saved successfully.
 		 *
-		 * @since 2.0.0 (originally on AccessControlUI; moved here in 4.0.0)
+		 * @since 1.0.0
 		 *
 		 * @param string   $namespace  Saved resource namespace.
 		 * @param string   $key        Saved resource key.
@@ -318,7 +318,7 @@ class RulesController extends WP_REST_Controller {
 	 * Removes all rows for the given namespace/key pair, reverting the resource
 	 * to the "no restriction configured" state.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param WP_REST_Request $request REST request.
 	 *
@@ -348,7 +348,7 @@ class RulesController extends WP_REST_Controller {
 	 * Removes every rule row belonging to the given namespace.
 	 * Intended for use during plugin uninstall.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param WP_REST_Request $request REST request.
 	 *
@@ -374,7 +374,7 @@ class RulesController extends WP_REST_Controller {
 	 * Returns the list of registered providers and their selectable options.
 	 * Useful for dynamically building a rule-configuration UI.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param WP_REST_Request $request REST request.
 	 *
@@ -401,7 +401,7 @@ class RulesController extends WP_REST_Controller {
 	 * Searches WordPress users by login, email, or display name.
 	 * Required when building a UI for the `wp_user` provider.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param WP_REST_Request $request REST request.
 	 *
@@ -423,7 +423,7 @@ class RulesController extends WP_REST_Controller {
 	/**
 	 * Validate that a namespace value is non-empty and within the column limit.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string $value Namespace parameter value.
 	 *
@@ -450,7 +450,7 @@ class RulesController extends WP_REST_Controller {
 	/**
 	 * Validate that a key value is non-empty and within the column limit.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string $value Key parameter value.
 	 *
@@ -481,7 +481,7 @@ class RulesController extends WP_REST_Controller {
 	/**
 	 * Authorize a write operation via the wpb_access_control_can_save filter.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @param string $namespace Resource namespace.
 	 * @param string $key       Resource key ('*' for namespace-level purge).
@@ -493,7 +493,7 @@ class RulesController extends WP_REST_Controller {
 		/**
 		 * Filter whether the current request may write access control for a target.
 		 *
-		 * @since 1.2.0 (originally on AccessControlUI; moved to RulesController in 4.0.0)
+		 * @since 1.2.0 (originally on AccessControlUI; moved to RulesController in 1.0.0)
 		 *
 		 * @param bool   $can_save  Whether the save is allowed. Default true.
 		 * @param string $namespace Resource namespace.
@@ -516,7 +516,7 @@ class RulesController extends WP_REST_Controller {
 	/**
 	 * Return the shared route args for {namespace} and {key} URL parameters.
 	 *
-	 * @since 4.0.0
+	 * @since 1.0.0
 	 *
 	 * @return array<string, array>
 	 */

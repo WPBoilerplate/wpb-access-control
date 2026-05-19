@@ -51,16 +51,8 @@ Your `composer.json` must include Jetpack Autoloader:
     "require": {
         "automattic/jetpack-autoloader": "^5.0",
         "berlindb/core": "^2.0",
-        "wpboilerplate/wpb-access-control": "dev-main"
+        "wpboilerplate/wpb-access-control": "^1.0"
     },
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/WPBoilerplate/wpb-access-control.git"
-        }
-    ],
-    "minimum-stability": "dev",
-    "prefer-stable": true,
     "config": {
         "allow-plugins": {
             "automattic/jetpack-autoloader": true
