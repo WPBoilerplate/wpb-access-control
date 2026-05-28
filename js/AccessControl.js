@@ -25,6 +25,15 @@
  * the component directly, call:
  *   apiFetch.use(apiFetch.createNonceMiddleware(nonce));
  * once — before rendering — in your own plugin code.
+ *
+ * Styles
+ * ------
+ * This file does not import AccessControl.scss so that consumers bundling the
+ * component via their own webpack can control where the CSS ends up. The
+ * standalone auto-render path (index.js) imports the stylesheet for its own
+ * pre-built assets. Consumers embedding the component should import the SCSS
+ * from their own stylesheet:
+ *   @import 'path/to/vendor/wpboilerplate/wpb-access-control/js/AccessControl';
  */
 
 import { useState, useEffect, useCallback } from '@wordpress/element';
@@ -33,11 +42,10 @@ import apiFetch from '@wordpress/api-fetch';
 import ProviderDropdown from './components/ProviderDropdown';
 import RoleOptionsPanel from './components/RoleOptionsPanel';
 import UserSearchPanel from './components/UserSearchPanel';
-import './AccessControl.scss';
 
 const NO_ACCESS = '';
 
-export default function AccessControl( {
+export function AccessControl( {
 	namespace,
 	resourceKey,
 	restApiRoot,
@@ -64,29 +72,6 @@ export default function AccessControl( {
 		.map( encodeURIComponent )
 		.join( '%2F' );
 
-	useEffect( () => {
-		Promise.all( [
-			apiFetch( { url: `${ restApiRoot }/wpb-ac/v1/providers` } ),
-			apiFetch( {
-				url: `${ restApiRoot }/wpb-ac/v1/rules/${ encodedNs }/${ resourceKey }`,
-			} ),
-		] )
-			.then( ( [ provs, rule ] ) => {
-				setProviders( provs );
-
-				const acKey = rule.key || '';
-				const acOptions = rule.value || [];
-				setSelectedKey( acKey );
-				setSelectedOptions( acOptions );
-
-				if ( acKey === 'wp_user' && acOptions.length > 0 ) {
-					hydrateUserIds( acOptions );
-				}
-			} )
-			.catch( () => {} )
-			.finally( () => setIsLoading( false ) );
-	}, [] ); // eslint-disable-line react-hooks/exhaustive-deps
-
 	/** Resolve stored user IDs to display-name objects via the WP core users API. */
 	const hydrateUserIds = useCallback(
 		( ids ) => {
@@ -110,6 +95,54 @@ export default function AccessControl( {
 		},
 		[ restApiRoot ]
 	);
+
+	useEffect( () => {
+		// Skip fetching when resourceKey is not yet available. This handles the
+		// case where a consumer renders the component before the resource slug is
+		// known (e.g. a form that pre-seeds data asynchronously). The effect
+		// re-runs as soon as resourceKey becomes non-empty.
+		if ( ! resourceKey ) {
+			setIsLoading( false );
+			return;
+		}
+
+		setIsLoading( true );
+		setSaveNotice( null );
+		setProviders( [] );
+		setSelectedKey( NO_ACCESS );
+		setSelectedOptions( [] );
+		setSelectedUsers( [] );
+
+		let cancelled = false;
+
+		Promise.all( [
+			apiFetch( { url: `${ restApiRoot }/wpb-ac/v1/providers` } ),
+			apiFetch( {
+				url: `${ restApiRoot }/wpb-ac/v1/rules/${ encodedNs }/${ resourceKey }`,
+			} ),
+		] )
+			.then( ( [ provs, rule ] ) => {
+				if ( cancelled ) return;
+				setProviders( provs );
+
+				const acKey = rule.key || '';
+				const acOptions = rule.value || [];
+				setSelectedKey( acKey );
+				setSelectedOptions( acOptions );
+
+				if ( acKey === 'wp_user' && acOptions.length > 0 ) {
+					hydrateUserIds( acOptions );
+				}
+			} )
+			.catch( () => {} )
+			.finally( () => {
+				if ( ! cancelled ) setIsLoading( false );
+			} );
+
+		return () => {
+			cancelled = true;
+		};
+	}, [ restApiRoot, encodedNs, resourceKey ] ); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const handleProviderChange = useCallback( ( newKey ) => {
 		setSelectedKey( newKey );
@@ -249,3 +282,5 @@ export default function AccessControl( {
 		</div>
 	);
 }
+
+export default AccessControl;
