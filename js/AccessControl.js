@@ -55,6 +55,7 @@ export function AccessControl( {
 	saveLabel = 'Save Access Control',
 	onSave,
 	hideSaveButton = false,
+	hideHeader = false,
 	onChange,
 } ) {
 	const [ isLoading, setIsLoading ] = useState( true );
@@ -230,8 +231,12 @@ export function AccessControl( {
 
 	return (
 		<div className="wpb-ac">
-			<h2 className="wpb-ac__title">{ title }</h2>
-			<p className="wpb-ac__description">{ description }</p>
+			{ ! hideHeader && (
+				<>
+					<h2 className="wpb-ac__title">{ title }</h2>
+					<p className="wpb-ac__description">{ description }</p>
+				</>
+			) }
 
 			<div className="wpb-ac__row">
 				<div className="wpb-ac__label">Who can access</div>
