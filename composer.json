@@ -51,7 +51,6 @@
 			"/vendor",
 			"/node_modules",
 			"/js",
-			"/assets/build",
 			"/webpack.config.js",
 			"/package.json",
 			"/package-lock.json",
