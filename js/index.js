@@ -29,6 +29,7 @@
  * before this script (wp-element, wp-api-fetch at minimum).
  */
 
+import './AccessControl.scss';
 import { render } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 import AccessControl from './AccessControl';
