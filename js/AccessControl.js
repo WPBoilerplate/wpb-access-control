@@ -54,6 +54,9 @@ export function AccessControl( {
 	description = 'Control which users are allowed to connect to this MCP server. Administrators always have access regardless of this setting.',
 	saveLabel = 'Save Access Control',
 	onSave,
+	hideSaveButton = false,
+	hideHeader = false,
+	onChange,
 } ) {
 	const [ isLoading, setIsLoading ] = useState( true );
 	const [ isSaving, setIsSaving ] = useState( false );
@@ -203,6 +206,15 @@ export function AccessControl( {
 		}
 	}, [ selectedKey, selectedOptions, encodedNs, resourceKey, restApiRoot, onSave ] );
 
+	// Notify the parent whenever the selection changes and loading is complete.
+	// Fires on initial data load (isLoading false) and on every user interaction.
+	// onChange is intentionally omitted from deps to avoid infinite loops.
+	useEffect( () => {
+		if ( ! isLoading ) {
+			onChange?.( selectedKey, selectedOptions );
+		}
+	}, [ selectedKey, selectedOptions, isLoading ] ); // eslint-disable-line react-hooks/exhaustive-deps
+
 	const activeProvider = providers.find( ( p ) => p.id === selectedKey ) || null;
 
 	// Show checkbox panel for providers with static options (e.g. wp_role).
@@ -219,8 +231,12 @@ export function AccessControl( {
 
 	return (
 		<div className="wpb-ac">
-			<h2 className="wpb-ac__title">{ title }</h2>
-			<p className="wpb-ac__description">{ description }</p>
+			{ ! hideHeader && (
+				<>
+					<h2 className="wpb-ac__title">{ title }</h2>
+					<p className="wpb-ac__description">{ description }</p>
+				</>
+			) }
 
 			<div className="wpb-ac__row">
 				<div className="wpb-ac__label">Who can access</div>
@@ -269,16 +285,18 @@ export function AccessControl( {
 				</p>
 			) }
 
-			<div className="wpb-ac__footer">
-				<button
-					type="button"
-					className="wpb-ac__save-btn"
-					onClick={ handleSave }
-					disabled={ isSaving }
-				>
-					{ isSaving ? 'Saving…' : saveLabel }
-				</button>
-			</div>
+			{ ! hideSaveButton && (
+				<div className="wpb-ac__footer">
+					<button
+						type="button"
+						className="wpb-ac__save-btn"
+						onClick={ handleSave }
+						disabled={ isSaving }
+					>
+						{ isSaving ? 'Saving…' : saveLabel }
+					</button>
+				</div>
+			) }
 		</div>
 	);
 }

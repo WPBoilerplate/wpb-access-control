@@ -11,7 +11,7 @@
 
 namespace WPBoilerplate\AccessControl\Database\Rule;
 
-use BerlinDB\Database\Table;
+use BerlinDB\Database\Kern\Table;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -44,12 +44,20 @@ class RuleTable extends Table {
 	protected $name = 'wpb_access_control';
 
 	/**
-	 * Schema version as a monotonically-increasing integer.
+	 * Schema class for BerlinDB to instantiate.
+	 * BerlinDB 3.0 reads this property in its private set_schema() method.
+	 *
+	 * @var string
+	 */
+	protected $schema = RuleSchema::class;
+
+	/**
+	 * Schema version as a monotonically-increasing string.
 	 * BerlinDB compares this to the stored option to decide which upgrades to run.
 	 *
-	 * @var int
+	 * @var string
 	 */
-	protected $version = 202605120001;
+	protected $version = '202605120001';
 
 	/**
 	 * WordPress option key used to store the installed schema version.
@@ -62,42 +70,11 @@ class RuleTable extends Table {
 	 * Version-to-method map for BerlinDB's upgrade runner.
 	 * Each method must return true on success.
 	 *
-	 * @var array<int,string>
+	 * @var array<string,string>
 	 */
 	protected $upgrades = array(
 		202605120001 => 'upgrade_202605120001',
 	);
-
-	// -------------------------------------------------------------------------
-	// Schema
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Define the table columns (called by BerlinDB during install/upgrade).
-	 *
-	 * @since 1.0.0
-	 *
-	 * @return void
-	 */
-	protected function set_schema(): void {
-		$ns  = self::NAMESPACE_LENGTH;
-		$key = self::KEY_LENGTH;
-		$ack = self::AC_KEY_LENGTH;
-		$acv = self::AC_VALUE_LENGTH;
-
-		$this->schema = "
-			`id` bigint(20) unsigned NOT NULL auto_increment,
-			`namespace` varchar({$ns}) NOT NULL DEFAULT '',
-			`key` varchar({$key}) NOT NULL DEFAULT '',
-			`access_control_key` varchar({$ack}) NOT NULL DEFAULT '',
-			`access_control_value` varchar({$acv}) NOT NULL DEFAULT '',
-			`created_at` datetime DEFAULT NULL,
-			`updated_at` datetime DEFAULT NULL,
-			PRIMARY KEY  (`id`),
-			UNIQUE KEY `ns_key_value` (`namespace`,`key`(191),`access_control_value`),
-			KEY `ns_key` (`namespace`,`key`(191))
-		";
-	}
 
 	// -------------------------------------------------------------------------
 	// Upgrade methods
@@ -110,6 +87,9 @@ class RuleTable extends Table {
 	 * dbDelta alone, so the table is dropped and recreated. Existing rows are
 	 * intentionally discarded — resources default to "no restriction" until
 	 * an admin reconfigures them.
+	 *
+	 * This runs exactly once (when stored db_version < 202605120001). Future
+	 * schema changes must NOT drop the table.
 	 *
 	 * @since 1.0.0
 	 *
