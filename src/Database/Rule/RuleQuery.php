@@ -23,7 +23,7 @@
 
 namespace WPBoilerplate\AccessControl\Database\Rule;
 
-use BerlinDB\Database\Query;
+use BerlinDB\Database\Kern\Query;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -167,8 +167,10 @@ class RuleQuery extends Query {
 	 *   - `'everyone'`→ one sentinel row with an empty value.
 	 *   - anything else → one row per option in $ac_options.
 	 *
-	 * Both $ac_key and each element of $ac_options are sanitized with
-	 * sanitize_key() before storage.
+	 * $ac_key is sanitized with sanitize_key() (machine identifier). Each
+	 * element of $ac_options is sanitized with sanitize_text_field() so that
+	 * provider values containing uppercase letters, dots, or @ symbols (e.g.
+	 * email-based identifiers) are preserved correctly.
 	 *
 	 * @since 1.0.0
 	 *
@@ -340,7 +342,7 @@ class RuleQuery extends Query {
 	 */
 	private static function normalize_input( string $key, array $options ): array {
 		$key     = sanitize_key( $key );
-		$options = array_values( array_map( 'sanitize_key', $options ) );
+		$options = array_values( array_map( 'sanitize_text_field', $options ) );
 
 		if ( '' === $key || 'everyone' === $key ) {
 			$options = array();

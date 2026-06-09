@@ -8,7 +8,7 @@
 
 namespace WPBoilerplate\AccessControl\Database\Rule;
 
-use BerlinDB\Database\Row;
+use BerlinDB\Database\Kern\Row;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;

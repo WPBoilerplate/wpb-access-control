@@ -22,9 +22,9 @@
 		"source": "https://github.com/WPBoilerplate/wpb-access-control"
 	},
 	"require": {
-		"php": ">=7.4",
+		"php": ">=8.1",
 		"automattic/jetpack-autoloader": "^5.0",
-		"berlindb/core": "^2.0"
+		"berlindb/core": "^3.0"
 	},
 	"require-dev": {
 		"brain/monkey": "^2.6",
@@ -62,7 +62,7 @@
 	"prefer-stable": true,
 	"config": {
 		"platform": {
-			"php": "7.4"
+			"php": "8.1"
 		},
 		"sort-packages": true,
 		"allow-plugins": {

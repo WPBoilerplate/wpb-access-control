@@ -28,6 +28,7 @@ final class QueryRuleSemanticsTest extends TestCase {
 		parent::setUp();
 		Monkey\setUp();
 		Functions\when( 'sanitize_key' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
 	}
 
 	protected function tearDown(): void {
@@ -172,12 +173,15 @@ final class QueryRuleSemanticsTest extends TestCase {
 		$q = $this->make_query();
 		$q->method( 'query' )->willReturn( array() ); // purge finds nothing
 
+		$expected_values = array( 'editor', 'author' );
+		$call_index      = 0;
 		$q->expects( $this->exactly( 2 ) )
 		  ->method( 'add_item' )
-		  ->withConsecutive(
-			  array( $this->callback( fn( array $d ) => $d['access_control_value'] === 'editor' ) ),
-			  array( $this->callback( fn( array $d ) => $d['access_control_value'] === 'author' ) )
-		  )
+		  ->with( $this->callback(
+			  static function ( array $d ) use ( &$call_index, $expected_values ): bool {
+				  return $d['access_control_value'] === $expected_values[ $call_index++ ];
+			  }
+		  ) )
 		  ->willReturn( 1 );
 
 		$result = $q->set_rule( 'ns', 'key', 'wp_role', array( 'editor', 'author' ) );
@@ -218,9 +222,15 @@ final class QueryRuleSemanticsTest extends TestCase {
 		  ->method( 'query' )
 		  ->willReturn( array( 5, 6 ) );
 
+		$expected_ids = array( 5, 6 );
+		$delete_index = 0;
 		$q->expects( $this->exactly( 2 ) )
 		  ->method( 'delete_item' )
-		  ->withConsecutive( array( 5 ), array( 6 ) );
+		  ->with( $this->callback(
+			  static function ( int $id ) use ( &$delete_index, $expected_ids ): bool {
+				  return $id === $expected_ids[ $delete_index++ ];
+			  }
+		  ) );
 
 		$result = $q->clear_rule( 'ns', 'key' );
 

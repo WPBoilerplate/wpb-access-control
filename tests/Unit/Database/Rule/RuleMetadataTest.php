@@ -3,20 +3,6 @@
  * Unit tests for Rule table metadata classes.
  */
 
-namespace BerlinDB\Database {
-	if ( ! function_exists( __NAMESPACE__ . '\wp_parse_args' ) ) {
-		function wp_parse_args( $args, array $defaults = array() ): array {
-			return array_merge( $defaults, (array) $args );
-		}
-	}
-
-	if ( ! function_exists( __NAMESPACE__ . '\wp_kses_data' ) ) {
-		function wp_kses_data( $data ) {
-			return $data;
-		}
-	}
-}
-
 namespace WPBoilerplate\AccessControl\Tests\Unit\Database\Rule {
 
 use Brain\Monkey;
@@ -45,9 +31,14 @@ final class RuleMetadataTest extends TestCase {
 		parent::tearDown();
 	}
 
+	// -------------------------------------------------------------------------
+	// RuleSchema — columns
+	// -------------------------------------------------------------------------
+
 	public function test_rule_schema_defines_expected_columns(): void {
-		$schema = new RuleSchema();
-		$names  = array_column( $schema->columns, 'name' );
+		$schema  = new RuleSchema();
+		$columns = $schema->get_columns();
+		$names   = array_map( static fn( $col ) => $col->name, $columns );
 
 		$this->assertSame(
 			array(
@@ -65,13 +56,102 @@ final class RuleMetadataTest extends TestCase {
 
 	public function test_rule_schema_lengths_match_table_constants(): void {
 		$schema  = new RuleSchema();
-		$columns = array_column( $schema->columns, null, 'name' );
+		$columns = array_column( $schema->get_columns(), null, 'name' );
 
 		$this->assertSame( RuleTable::NAMESPACE_LENGTH, $columns['namespace']->length );
 		$this->assertSame( RuleTable::KEY_LENGTH, $columns['key']->length );
 		$this->assertSame( RuleTable::AC_KEY_LENGTH, $columns['access_control_key']->length );
 		$this->assertSame( RuleTable::AC_VALUE_LENGTH, $columns['access_control_value']->length );
 	}
+
+	// -------------------------------------------------------------------------
+	// RuleSchema — indexes
+	// -------------------------------------------------------------------------
+
+	public function test_rule_schema_defines_two_indexes(): void {
+		$schema  = new RuleSchema();
+		$indexes = $schema->get_indexes();
+
+		$this->assertCount( 2, $indexes );
+	}
+
+	public function test_rule_schema_has_unique_key_on_namespace_key_value(): void {
+		$schema = new RuleSchema();
+
+		$this->assertTrue( $schema->has_index( 'ns_key_value' ) );
+
+		$index = $schema->get_index( 'ns_key_value' );
+		$this->assertSame( 'unique', strtolower( $index->type ) );
+		$this->assertSame( array( 'namespace', 'key', 'access_control_value' ), $index->columns );
+	}
+
+	public function test_rule_schema_has_composite_key_on_namespace_key(): void {
+		$schema = new RuleSchema();
+
+		$this->assertTrue( $schema->has_index( 'ns_key' ) );
+
+		$index = $schema->get_index( 'ns_key' );
+		$this->assertSame( array( 'namespace', 'key' ), $index->columns );
+	}
+
+	public function test_rule_schema_passes_berlindb_validation(): void {
+		$schema = new RuleSchema();
+
+		$this->assertTrue( $schema->is_valid(), implode( '; ', $schema->get_validation_errors() ) );
+	}
+
+	public function test_rule_schema_generates_non_empty_create_table_sql(): void {
+		$schema = new RuleSchema();
+		$sql    = $schema->get_create_table_string();
+
+		$this->assertNotEmpty( $sql, 'get_create_table_string() must return non-empty SQL' );
+		$this->assertStringContainsString( '`namespace`', $sql );
+		$this->assertStringContainsString( '`access_control_value`', $sql );
+	}
+
+	// -------------------------------------------------------------------------
+	// RuleTable — schema wiring
+	// -------------------------------------------------------------------------
+
+	public function test_rule_table_schema_property_points_to_rule_schema_class(): void {
+		$reflection = new \ReflectionClass( RuleTable::class );
+		$defaults   = $reflection->getDefaultProperties();
+
+		$this->assertSame(
+			RuleSchema::class,
+			$defaults['schema'],
+			'RuleTable::$schema must be RuleSchema::class so BerlinDB 3.0 can instantiate it'
+		);
+	}
+
+	public function test_rule_table_version_is_string(): void {
+		$reflection = new \ReflectionClass( RuleTable::class );
+		$defaults   = $reflection->getDefaultProperties();
+
+		$this->assertIsString(
+			$defaults['version'],
+			'RuleTable::$version must be a string for version_compare() compatibility'
+		);
+	}
+
+	public function test_rule_table_does_not_declare_set_schema(): void {
+		$reflection = new \ReflectionClass( RuleTable::class );
+
+		if ( $reflection->hasMethod( 'set_schema' ) ) {
+			$declaring = $reflection->getMethod( 'set_schema' )->getDeclaringClass()->getName();
+			$this->assertNotSame(
+				RuleTable::class,
+				$declaring,
+				'RuleTable must not declare set_schema() — it is private in BerlinDB 3.0 and an override is dead code'
+			);
+		} else {
+			$this->assertTrue( true );
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// RuleRow
+	// -------------------------------------------------------------------------
 
 	public function test_rule_row_defaults_match_empty_database_row_shape(): void {
 		$row = new RuleRow();
