@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.3
+
+- chore(dist): remove `js/` from `.gitattributes` export-ignore so `git archive` and composer dist include the JS source
+
 ## 1.2.2
 
 - chore(dist): include `js/` source in composer archive so consuming plugins can webpack-bundle `AccessControl` as a named ESM export
