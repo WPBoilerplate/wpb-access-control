@@ -68,11 +68,21 @@ final class RuleMetadataTest extends TestCase {
 	// RuleSchema — indexes
 	// -------------------------------------------------------------------------
 
-	public function test_rule_schema_defines_two_indexes(): void {
+	public function test_rule_schema_defines_three_indexes(): void {
 		$schema  = new RuleSchema();
 		$indexes = $schema->get_indexes();
 
-		$this->assertCount( 2, $indexes );
+		$this->assertCount( 3, $indexes );
+	}
+
+	public function test_rule_schema_has_primary_key_on_id(): void {
+		$schema = new RuleSchema();
+
+		$this->assertTrue( $schema->has_index( 'primary' ) );
+
+		$index = $schema->get_index( 'primary' );
+		$this->assertSame( 'primary', strtolower( $index->type ) );
+		$this->assertSame( array( 'id' ), $index->columns );
 	}
 
 	public function test_rule_schema_has_unique_key_on_namespace_key_value(): void {

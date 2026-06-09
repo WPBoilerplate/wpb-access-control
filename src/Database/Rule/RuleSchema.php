@@ -42,7 +42,6 @@ class RuleSchema extends Schema {
 			'length'   => 20,
 			'unsigned' => true,
 			'extra'    => 'auto_increment',
-			'primary'  => true,
 			'sortable' => true,
 		),
 		array(
@@ -102,6 +101,11 @@ class RuleSchema extends Schema {
 	 * @var array[]
 	 */
 	public $indexes = array(
+		array(
+			'name'    => 'primary',
+			'type'    => 'primary',
+			'columns' => array( 'id' ),
+		),
 		array(
 			'name'    => 'ns_key_value',
 			'type'    => 'unique',
