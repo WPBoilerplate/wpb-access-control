@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2
+
+- chore(dist): include `js/` source in composer archive so consuming plugins can webpack-bundle `AccessControl` as a named ESM export
+
 ## 1.2.1
 
 - fix(Database): add PRIMARY KEY index to RuleSchema — BerlinDB v3 requires an explicit `primary` Index entry for the `id` column
