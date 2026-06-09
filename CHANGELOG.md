@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1
+
+- fix(Database): add PRIMARY KEY index to RuleSchema — BerlinDB v3 requires an explicit `primary` Index entry for the `id` column
+
 ## 1.2.0
 
 - fix(Database): upgrade BerlinDB to 3.0 — fixes DB table never being created due to `set_schema()` becoming private; switches to `BerlinDB\Database\Kern\*` canonical namespace and native index support
