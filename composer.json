@@ -47,15 +47,19 @@
 		"exclude": [
 			"/.claude",
 			"/.github",
-			"/tests",
-			"/vendor",
-			"/node_modules",
+			"/.gitattributes",
+			"/.gitignore",
+			"/.phpunit.result.cache",
+			"/AGENTS.md",
+			"/composer.lock",
 			"/js",
-			"/webpack.config.js",
+			"/node_modules",
 			"/package.json",
 			"/package-lock.json",
-			"/AGENTS.md",
-			"/phpunit.xml"
+			"/phpunit.xml",
+			"/tests",
+			"/vendor",
+			"/webpack.config.js"
 		]
 	},
 	"minimum-stability": "dev",
