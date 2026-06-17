@@ -255,6 +255,7 @@ The component has four states driven by a single **"Who can access"** dropdown:
 | **WordPress Role** | Checkboxes for each WordPress role |
 | **WordPress Capability** | Checkboxes for each WordPress capability (discovered across all roles) |
 | **BuddyBoss Profile Type** | Checkboxes for each BuddyBoss profile type — hidden automatically when BuddyBoss Platform is inactive |
+| **MemberPress Membership** | Checkboxes for each MemberPress membership — hidden automatically when MemberPress is inactive |
 | **Users** | Search-as-you-type field + selected-user tags |
 
 Custom providers registered via the filter also appear in the dropdown. If
@@ -721,6 +722,7 @@ correct controls dynamically without hard-coding provider IDs.
 | `wp_user` | `WpUserProvider` | Restricts to specific WordPress users by ID. |
 | `wp_capability` | `WpCapabilityProvider` | Restricts by one or more WordPress capability slugs. Users holding **any** of the selected capabilities pass. |
 | `bb_profile_type` | `BuddyBossProfileTypeProvider` | Restricts by one or more BuddyBoss profile types (member types). Reports `available: false` when BuddyBoss Platform is not active — the React dropdown hides the option automatically. |
+| `mepr_membership` | `MemberPressMembershipProvider` | Restricts by one or more MemberPress memberships. Reports `available: false` when MemberPress is not active — the React dropdown hides the option automatically. |
 
 ### `WpRoleProvider` filters
 
@@ -779,6 +781,23 @@ selected profile types (via `bp_get_member_type()`).
 |--------|-----------|-------------|
 | `wpb_access_control_bb_profile_type_options` | `(array $options): array` | Add or remove selectable profile-type options |
 | `wpb_access_control_bb_profile_type_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final profile-type-based decision |
+
+### `MemberPressMembershipProvider`
+
+Requires the [MemberPress](https://memberpress.com/) plugin to be active.
+When inactive the provider reports `is_available() === false` and the React
+dropdown hides the option automatically; saved rules of type
+`mepr_membership` deny by default while MemberPress is missing.
+
+Options are MemberPress membership post IDs (stored as strings — the
+underlying `memberpressproduct` CPT post IDs). Access is granted when the
+user's active product subscriptions (`MeprUser::active_product_subscriptions()`)
+intersect any selected membership ID.
+
+| Filter | Signature | Description |
+|--------|-----------|-------------|
+| `wpb_access_control_mepr_membership_options` | `(array $options): array` | Add or remove selectable membership options |
+| `wpb_access_control_mepr_membership_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final membership-based decision |
 
 ---
 

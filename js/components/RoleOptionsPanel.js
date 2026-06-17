@@ -9,6 +9,8 @@ const PROVIDER_DESCRIPTIONS = {
 		'Select which WordPress capabilities grant access. Users holding any of the checked capabilities are allowed. Administrators always have access.',
 	bb_profile_type:
 		'Select which BuddyBoss profile types grant access. Users assigned to any of the checked profile types are allowed. Administrators always have access.',
+	mepr_membership:
+		'Select which MemberPress memberships grant access. Users with an active subscription to any of the checked memberships are allowed. Administrators always have access.',
 };
 
 /**
