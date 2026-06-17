@@ -74,18 +74,49 @@ class BuddyBossProfileTypeProvider extends AbstractProvider {
 	}
 
 	/**
-	 * Return whether BuddyBoss Platform exposes its member-types API.
+	 * Return whether the provider should fire for the current request.
+	 *
+	 * Two conditions must hold:
+	 *  1. BuddyBoss Platform exposes its member-types API
+	 *     (`function_exists( 'bp_get_member_type'/'bp_get_member_types' )`).
+	 *  2. The consumer plugin has opted in by hooking
+	 *     `wpb_access_control_bb_profile_type_enabled` to return `true`.
+	 *
+	 * The opt-in default is `false` so plugins that embed this library do
+	 * not silently expose a BuddyBoss option in their UI just because
+	 * BuddyBoss happens to be active on the site.
 	 *
 	 * The REST `/providers` endpoint forwards this flag to the React UI,
-	 * which hides the dropdown option when false.
+	 * which hides the dropdown option when false; `get_options()` and
+	 * `user_has_access()` short-circuit on the same gate.
 	 *
 	 * @since 1.4.0
+	 * @since 1.6.0 Added the `wpb_access_control_bb_profile_type_enabled` opt-in filter.
 	 *
 	 * @return bool
 	 */
 	public function is_available(): bool {
-		return function_exists( 'bp_get_member_type' )
-			&& function_exists( 'bp_get_member_types' );
+		if ( ! function_exists( 'bp_get_member_type' ) || ! function_exists( 'bp_get_member_types' ) ) {
+			return false;
+		}
+
+		/**
+		 * Filter whether the BuddyBoss Profile Type provider is enabled.
+		 *
+		 * Defaults to `false` — the consumer plugin must explicitly opt in
+		 * by returning `true`. When `false`, the provider is hidden from
+		 * the React dropdown, `get_options()` returns `[]`, and
+		 * `user_has_access()` denies regardless of any stored rule.
+		 *
+		 * Example (in your plugin's bootstrap):
+		 *
+		 *   add_filter( 'wpb_access_control_bb_profile_type_enabled', '__return_true' );
+		 *
+		 * @since 1.6.0
+		 *
+		 * @param bool $enabled Whether the provider should be active. Default false.
+		 */
+		return (bool) apply_filters( 'wpb_access_control_bb_profile_type_enabled', false );
 	}
 
 	/**

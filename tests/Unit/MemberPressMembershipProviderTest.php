@@ -34,10 +34,28 @@ use WPBoilerplate\AccessControl\MemberPressMembershipProvider;
 
 final class MemberPressMembershipProviderTest extends TestCase {
 
+	/**
+	 * Default return value for the opt-in filter during each test.
+	 *
+	 * Per-test overrides set this directly — much simpler than trying to
+	 * layer multiple Mockery expectations for the same filter.
+	 *
+	 * @var bool
+	 */
+	private static bool $opt_in_default = true;
+
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 		Functions\when( '__' )->returnArg();
+		// Reset opt-in to true for every test; specific tests can flip it
+		// before invoking the provider to verify the default-false gate.
+		self::$opt_in_default = true;
+		Filters\expectApplied( 'wpb_access_control_mepr_membership_enabled' )
+			->zeroOrMoreTimes()
+			->andReturnUsing( static function () {
+				return self::$opt_in_default;
+			} );
 		\MeprUser::$next_subscriptions = array();
 	}
 
@@ -92,9 +110,17 @@ final class MemberPressMembershipProviderTest extends TestCase {
 	// is_available()
 	// -------------------------------------------------------------------------
 
-	public function test_is_available_returns_true_when_constant_and_class_present(): void {
-		// MEPR_VERSION and MeprUser are defined at the top of this file.
+	public function test_is_available_returns_true_when_plugin_present_and_filter_opts_in(): void {
+		// setUp() opts the provider in (filter → true); MEPR_VERSION and
+		// MeprUser are declared globally in tests/bootstrap.php.
 		$this->assertTrue( $this->provider()->is_available() );
+	}
+
+	public function test_is_available_returns_false_by_default_when_opt_in_filter_not_hooked(): void {
+		// Production default: filter returns false → provider is inert.
+		self::$opt_in_default = false;
+
+		$this->assertFalse( $this->provider()->is_available() );
 	}
 
 	// -------------------------------------------------------------------------
