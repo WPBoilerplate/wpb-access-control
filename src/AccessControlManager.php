@@ -107,6 +107,7 @@ class AccessControlManager {
 			new WpRoleProvider(),
 			new WpUserProvider(),
 			new WpCapabilityProvider(),
+			new BuddyBossProfileTypeProvider(),
 		);
 
 		/**
