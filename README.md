@@ -254,6 +254,7 @@ The component has four states driven by a single **"Who can access"** dropdown:
 | **Everyone (no restriction)** | Nothing — all users can access |
 | **WordPress Role** | Checkboxes for each WordPress role |
 | **WordPress Capability** | Checkboxes for each WordPress capability (discovered across all roles) |
+| **BuddyBoss Profile Type** | Checkboxes for each BuddyBoss profile type — hidden automatically when BuddyBoss Platform is inactive |
 | **Users** | Search-as-you-type field + selected-user tags |
 
 Custom providers registered via the filter also appear in the dropdown. If
@@ -719,6 +720,7 @@ correct controls dynamically without hard-coding provider IDs.
 | `wp_role` | `WpRoleProvider` | Restricts by WordPress user role. Administrator is always bypassed. |
 | `wp_user` | `WpUserProvider` | Restricts to specific WordPress users by ID. |
 | `wp_capability` | `WpCapabilityProvider` | Restricts by one or more WordPress capability slugs. Users holding **any** of the selected capabilities pass. |
+| `bb_profile_type` | `BuddyBossProfileTypeProvider` | Restricts by one or more BuddyBoss profile types (member types). Reports `available: false` when BuddyBoss Platform is not active — the React dropdown hides the option automatically. |
 
 ### `WpRoleProvider` filters
 
@@ -759,6 +761,24 @@ returns true for **any** selected capability.
 |--------|-----------|-------------|
 | `wpb_access_control_wp_capability_options` | `(array $options): array` | Add or remove selectable capability options (e.g. to surface a custom cap that no role holds yet) |
 | `wpb_access_control_wp_capability_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final capability-based decision |
+
+### `BuddyBossProfileTypeProvider`
+
+Requires the [BuddyBoss Platform](https://www.buddyboss.com/platform/) plugin
+to be active. When inactive the provider reports `is_available() === false`
+and the React dropdown hides the option automatically; saved rules of type
+`bb_profile_type` deny by default while BuddyBoss is missing.
+
+Options are profile-type slugs (the same identifiers BuddyBoss exposes via
+`bp_get_member_types()`). Both admin-created types (Profile Types CPT) and
+code-registered types via `bp_register_member_type()` appear in the list.
+Access is granted when the requesting user is assigned to **any** of the
+selected profile types (via `bp_get_member_type()`).
+
+| Filter | Signature | Description |
+|--------|-----------|-------------|
+| `wpb_access_control_bb_profile_type_options` | `(array $options): array` | Add or remove selectable profile-type options |
+| `wpb_access_control_bb_profile_type_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final profile-type-based decision |
 
 ---
 

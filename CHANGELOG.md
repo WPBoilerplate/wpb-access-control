@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0
+
+- feat(providers): add `BuddyBossProfileTypeProvider` — gate a resource by one or more BuddyBoss profile types (member types). Options are listed via `bp_get_member_types()` and curated via the `wpb_access_control_bb_profile_type_options` filter
+- feat(AccessControl): the React UI's "Who can access" dropdown lists **BuddyBoss Profile Type** when the BuddyBoss Platform plugin is active; the entry is hidden automatically when BuddyBoss is inactive (existing `available` flag wired through `RulesController` and `ProviderDropdown`)
+
 ## 1.3.0
 
 - feat(providers): add `WpCapabilityProvider` — gate a resource by one or more WordPress capability slugs; options are discovered dynamically across every role returned by `wp_roles()` and curated via the `wpb_access_control_wp_capability_options` filter
