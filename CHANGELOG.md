@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0
+
+- feat(providers): add `WpCapabilityProvider` — gate a resource by one or more WordPress capability slugs; options are discovered dynamically across every role returned by `wp_roles()` and curated via the `wpb_access_control_wp_capability_options` filter
+- feat(AccessControl): the React UI's "Who can access" dropdown now lists **WordPress Capability** alongside Role / Users — no consumer-side changes required
+
 ## 1.2.3
 
 - chore(dist): remove `js/` from `.gitattributes` export-ignore so `git archive` and composer dist include the JS source
