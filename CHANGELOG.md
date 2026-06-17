@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0
+
+- feat(providers): add `MemberPressMembershipProvider` — gate a resource by one or more MemberPress memberships. Options come from the `memberpressproduct` CPT and curated via the `wpb_access_control_mepr_membership_options` filter
+- feat(AccessControl): the React UI's "Who can access" dropdown lists **MemberPress Membership** when MemberPress is active; the entry is hidden automatically when the plugin is inactive (existing `available` flag wired through `RulesController` and `ProviderDropdown`)
+
 ## 1.4.0
 
 - feat(providers): add `BuddyBossProfileTypeProvider` — gate a resource by one or more BuddyBoss profile types (member types). Options are listed via `bp_get_member_types()` and curated via the `wpb_access_control_bb_profile_type_options` filter

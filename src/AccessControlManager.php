@@ -108,6 +108,7 @@ class AccessControlManager {
 			new WpUserProvider(),
 			new WpCapabilityProvider(),
 			new BuddyBossProfileTypeProvider(),
+			new MemberPressMembershipProvider(),
 		);
 
 		/**
