@@ -254,8 +254,8 @@ The component has four states driven by a single **"Who can access"** dropdown:
 | **Everyone (no restriction)** | Nothing — all users can access |
 | **WordPress Role** | Checkboxes for each WordPress role |
 | **WordPress Capability** | Checkboxes for each WordPress capability (discovered across all roles) |
-| **BuddyBoss Profile Type** | Checkboxes for each BuddyBoss profile type — hidden automatically when BuddyBoss Platform is inactive |
-| **MemberPress Membership** | Checkboxes for each MemberPress membership — hidden automatically when MemberPress is inactive |
+| **BuddyBoss Profile Type** | Checkboxes for each BuddyBoss profile type — only visible when BuddyBoss is active *and* the consumer opts in via `wpb_access_control_bb_profile_type_enabled` |
+| **MemberPress Membership** | Checkboxes for each MemberPress membership — only visible when MemberPress is active *and* the consumer opts in via `wpb_access_control_mepr_membership_enabled` |
 | **Users** | Search-as-you-type field + selected-user tags |
 
 Custom providers registered via the filter also appear in the dropdown. If
@@ -721,8 +721,8 @@ correct controls dynamically without hard-coding provider IDs.
 | `wp_role` | `WpRoleProvider` | Restricts by WordPress user role. Administrator is always bypassed. |
 | `wp_user` | `WpUserProvider` | Restricts to specific WordPress users by ID. |
 | `wp_capability` | `WpCapabilityProvider` | Restricts by one or more WordPress capability slugs. Users holding **any** of the selected capabilities pass. |
-| `bb_profile_type` | `BuddyBossProfileTypeProvider` | Restricts by one or more BuddyBoss profile types (member types). Reports `available: false` when BuddyBoss Platform is not active — the React dropdown hides the option automatically. |
-| `mepr_membership` | `MemberPressMembershipProvider` | Restricts by one or more MemberPress memberships. Reports `available: false` when MemberPress is not active — the React dropdown hides the option automatically. |
+| `bb_profile_type` | `BuddyBossProfileTypeProvider` | Restricts by one or more BuddyBoss profile types (member types). **Opt-in**: requires `wpb_access_control_bb_profile_type_enabled` to return `true` *and* BuddyBoss Platform to be active. |
+| `mepr_membership` | `MemberPressMembershipProvider` | Restricts by one or more MemberPress memberships. **Opt-in**: requires `wpb_access_control_mepr_membership_enabled` to return `true` *and* MemberPress to be active. |
 
 ### `WpRoleProvider` filters
 
@@ -767,9 +767,16 @@ returns true for **any** selected capability.
 ### `BuddyBossProfileTypeProvider`
 
 Requires the [BuddyBoss Platform](https://www.buddyboss.com/platform/) plugin
-to be active. When inactive the provider reports `is_available() === false`
-and the React dropdown hides the option automatically; saved rules of type
-`bb_profile_type` deny by default while BuddyBoss is missing.
+to be active **and** the consumer plugin to opt in via the
+`wpb_access_control_bb_profile_type_enabled` filter (default `false`). When
+either condition is unmet the provider reports `is_available() === false`,
+the React dropdown hides the option, and saved rules of type
+`bb_profile_type` deny.
+
+```php
+// In your consumer plugin's bootstrap — enable the BuddyBoss provider.
+add_filter( 'wpb_access_control_bb_profile_type_enabled', '__return_true' );
+```
 
 Options are profile-type slugs (the same identifiers BuddyBoss exposes via
 `bp_get_member_types()`). Both admin-created types (Profile Types CPT) and
@@ -779,15 +786,23 @@ selected profile types (via `bp_get_member_type()`).
 
 | Filter | Signature | Description |
 |--------|-----------|-------------|
+| `wpb_access_control_bb_profile_type_enabled` | `(bool $enabled): bool` | **Opt-in gate.** Default `false`; must return `true` for the provider to fire |
 | `wpb_access_control_bb_profile_type_options` | `(array $options): array` | Add or remove selectable profile-type options |
 | `wpb_access_control_bb_profile_type_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final profile-type-based decision |
 
 ### `MemberPressMembershipProvider`
 
-Requires the [MemberPress](https://memberpress.com/) plugin to be active.
-When inactive the provider reports `is_available() === false` and the React
-dropdown hides the option automatically; saved rules of type
-`mepr_membership` deny by default while MemberPress is missing.
+Requires the [MemberPress](https://memberpress.com/) plugin to be active
+**and** the consumer plugin to opt in via the
+`wpb_access_control_mepr_membership_enabled` filter (default `false`). When
+either condition is unmet the provider reports `is_available() === false`,
+the React dropdown hides the option, and saved rules of type
+`mepr_membership` deny.
+
+```php
+// In your consumer plugin's bootstrap — enable the MemberPress provider.
+add_filter( 'wpb_access_control_mepr_membership_enabled', '__return_true' );
+```
 
 Options are MemberPress membership post IDs (stored as strings — the
 underlying `memberpressproduct` CPT post IDs). Access is granted when the
@@ -796,6 +811,7 @@ intersect any selected membership ID.
 
 | Filter | Signature | Description |
 |--------|-----------|-------------|
+| `wpb_access_control_mepr_membership_enabled` | `(bool $enabled): bool` | **Opt-in gate.** Default `false`; must return `true` for the provider to fire |
 | `wpb_access_control_mepr_membership_options` | `(array $options): array` | Add or remove selectable membership options |
 | `wpb_access_control_mepr_membership_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final membership-based decision |
 

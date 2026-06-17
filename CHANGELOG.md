@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.6.0
+
+**BREAKING (BuddyBoss / MemberPress providers):** the `BuddyBossProfileTypeProvider` and `MemberPressMembershipProvider` are now opt-in. Each provider's `is_available()` consults a new filter that defaults to `false`, so the provider is hidden from the React dropdown and denies on every check until the consumer plugin explicitly opts in. Existing rules saved against either provider deny by default after upgrading until the corresponding filter is hooked.
+
+Migration — in your consumer plugin's bootstrap:
+
+```php
+// Enable BuddyBoss Profile Type as an access-control option.
+add_filter( 'wpb_access_control_bb_profile_type_enabled', '__return_true' );
+
+// Enable MemberPress Membership as an access-control option.
+add_filter( 'wpb_access_control_mepr_membership_enabled', '__return_true' );
+```
+
+Rationale: plugins that embed `wpb-access-control` via Composer were inheriting both third-party-provider options as soon as those plugins were active on the site, regardless of whether the embedding plugin intended to surface them. Defaulting to `false` keeps the library quiet by default; consumers opt in per provider.
+
+- feat(providers): add `wpb_access_control_bb_profile_type_enabled` filter — default false, must return true for the BuddyBoss provider to fire
+- feat(providers): add `wpb_access_control_mepr_membership_enabled` filter — default false, must return true for the MemberPress provider to fire
+
 ## 1.5.0
 
 - feat(providers): add `MemberPressMembershipProvider` — gate a resource by one or more MemberPress memberships. Options come from the `memberpressproduct` CPT and curated via the `wpb_access_control_mepr_membership_options` filter

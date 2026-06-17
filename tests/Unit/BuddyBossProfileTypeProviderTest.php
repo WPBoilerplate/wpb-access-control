@@ -24,10 +24,29 @@ use WPBoilerplate\AccessControl\BuddyBossProfileTypeProvider;
 
 final class BuddyBossProfileTypeProviderTest extends TestCase {
 
+	/**
+	 * Default return value for the opt-in filter during each test.
+	 *
+	 * Per-test overrides set this directly — much simpler than trying to
+	 * layer multiple Mockery expectations for the same filter (the first
+	 * wins, so subsequent expectApplied calls do not actually override).
+	 *
+	 * @var bool
+	 */
+	private static bool $opt_in_default = true;
+
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 		Functions\when( '__' )->returnArg();
+		// Reset opt-in to true for every test; specific tests can flip it
+		// before invoking the provider to verify the default-false gate.
+		self::$opt_in_default = true;
+		Filters\expectApplied( 'wpb_access_control_bb_profile_type_enabled' )
+			->zeroOrMoreTimes()
+			->andReturnUsing( static function () {
+				return self::$opt_in_default;
+			} );
 	}
 
 	protected function tearDown(): void {
@@ -83,11 +102,22 @@ final class BuddyBossProfileTypeProviderTest extends TestCase {
 	// is_available()
 	// -------------------------------------------------------------------------
 
-	public function test_is_available_returns_true_when_both_buddyboss_functions_exist(): void {
+	public function test_is_available_returns_true_when_functions_exist_and_filter_opts_in(): void {
+		// setUp() opts the provider in (filter → true); both BuddyBoss
+		// function stubs are defined here to satisfy the plugin-active check.
 		Functions\when( 'bp_get_member_type' )->justReturn( false );
 		Functions\when( 'bp_get_member_types' )->justReturn( array() );
 
 		$this->assertTrue( $this->provider()->is_available() );
+	}
+
+	public function test_is_available_returns_false_by_default_when_opt_in_filter_not_hooked(): void {
+		// Production default: filter returns false → provider is inert.
+		self::$opt_in_default = false;
+		Functions\when( 'bp_get_member_type' )->justReturn( false );
+		Functions\when( 'bp_get_member_types' )->justReturn( array() );
+
+		$this->assertFalse( $this->provider()->is_available() );
 	}
 
 	// -------------------------------------------------------------------------

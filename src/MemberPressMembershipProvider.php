@@ -84,14 +84,49 @@ class MemberPressMembershipProvider extends AbstractProvider {
 	}
 
 	/**
-	 * Return whether MemberPress is active and its user model is available.
+	 * Return whether the provider should fire for the current request.
+	 *
+	 * Two conditions must hold:
+	 *  1. MemberPress is active (`defined( 'MEPR_VERSION' )` and
+	 *     `class_exists( 'MeprUser' )`).
+	 *  2. The consumer plugin has opted in by hooking
+	 *     `wpb_access_control_mepr_membership_enabled` to return `true`.
+	 *
+	 * The opt-in default is `false` so plugins that embed this library do
+	 * not silently expose a MemberPress option in their UI just because
+	 * MemberPress happens to be active on the site.
+	 *
+	 * The REST `/providers` endpoint forwards this flag to the React UI,
+	 * which hides the dropdown option when false; `get_options()` and
+	 * `user_has_access()` short-circuit on the same gate.
 	 *
 	 * @since 1.5.0
+	 * @since 1.6.0 Added the `wpb_access_control_mepr_membership_enabled` opt-in filter.
 	 *
 	 * @return bool
 	 */
 	public function is_available(): bool {
-		return defined( 'MEPR_VERSION' ) && class_exists( 'MeprUser' );
+		if ( ! defined( 'MEPR_VERSION' ) || ! class_exists( 'MeprUser' ) ) {
+			return false;
+		}
+
+		/**
+		 * Filter whether the MemberPress Membership provider is enabled.
+		 *
+		 * Defaults to `false` — the consumer plugin must explicitly opt in
+		 * by returning `true`. When `false`, the provider is hidden from
+		 * the React dropdown, `get_options()` returns `[]`, and
+		 * `user_has_access()` denies regardless of any stored rule.
+		 *
+		 * Example (in your plugin's bootstrap):
+		 *
+		 *   add_filter( 'wpb_access_control_mepr_membership_enabled', '__return_true' );
+		 *
+		 * @since 1.6.0
+		 *
+		 * @param bool $enabled Whether the provider should be active. Default false.
+		 */
+		return (bool) apply_filters( 'wpb_access_control_mepr_membership_enabled', false );
 	}
 
 	/**
