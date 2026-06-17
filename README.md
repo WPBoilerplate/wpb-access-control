@@ -253,6 +253,7 @@ The component has four states driven by a single **"Who can access"** dropdown:
 | **No user access added by admin** | Nothing — resource is locked (except admins) |
 | **Everyone (no restriction)** | Nothing — all users can access |
 | **WordPress Role** | Checkboxes for each WordPress role |
+| **WordPress Capability** | Checkboxes for each WordPress capability (discovered across all roles) |
 | **Users** | Search-as-you-type field + selected-user tags |
 
 Custom providers registered via the filter also appear in the dropdown. If
@@ -717,6 +718,7 @@ correct controls dynamically without hard-coding provider IDs.
 |-------------|-------|-------------|
 | `wp_role` | `WpRoleProvider` | Restricts by WordPress user role. Administrator is always bypassed. |
 | `wp_user` | `WpUserProvider` | Restricts to specific WordPress users by ID. |
+| `wp_capability` | `WpCapabilityProvider` | Restricts by one or more WordPress capability slugs. Users holding **any** of the selected capabilities pass. |
 
 ### `WpRoleProvider` filters
 
@@ -744,6 +746,19 @@ $users = WpUserProvider::get_users_by_ids( ['5', '42'] );
 | Filter | Signature | Description |
 |--------|-----------|-------------|
 | `wpb_access_control_wp_user_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final per-user decision |
+
+### `WpCapabilityProvider`
+
+Options are WordPress capability slugs (e.g. `install_plugins`, `edit_posts`,
+`manage_options`). The list is built dynamically from every role returned by
+`wp_roles()` — capabilities added by plugins like WooCommerce, Members, or
+User Role Editor appear automatically. Access is granted when `user_can()`
+returns true for **any** selected capability.
+
+| Filter | Signature | Description |
+|--------|-----------|-------------|
+| `wpb_access_control_wp_capability_options` | `(array $options): array` | Add or remove selectable capability options (e.g. to surface a custom cap that no role holds yet) |
+| `wpb_access_control_wp_capability_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final capability-based decision |
 
 ---
 

@@ -5,6 +5,8 @@
 const PROVIDER_DESCRIPTIONS = {
 	wp_role:
 		'Select which WordPress Role values may access this resource. Leave all unchecked to deny everyone (except administrators).',
+	wp_capability:
+		'Select which WordPress capabilities grant access. Users holding any of the checked capabilities are allowed. Administrators always have access.',
 };
 
 /**

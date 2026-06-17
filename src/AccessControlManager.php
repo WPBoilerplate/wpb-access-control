@@ -106,6 +106,7 @@ class AccessControlManager {
 		$default_providers = array(
 			new WpRoleProvider(),
 			new WpUserProvider(),
+			new WpCapabilityProvider(),
 		);
 
 		/**
