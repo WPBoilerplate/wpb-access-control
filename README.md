@@ -81,37 +81,26 @@ require_once __DIR__ . '/vendor/autoload_packages.php';
 ### 1. Boot the manager
 
 Declare `$manager` at **file scope** (outside any closure) so every subsequent
-hook can capture it via `use`. Pass two arguments:
-
-1. A **plugin-specific provider filter tag** so your providers don't bleed
-   into other plugins using the library.
-2. A **per-plugin table slug** (must match `^[a-z0-9_]{1,32}$`) so your
-   database table, object-cache group, and REST routes are isolated from
-   every other plugin embedding the library.
+hook can capture it via `use`. Always pass a **plugin-specific filter tag** to
+prevent your providers bleeding into other plugins that also use this library.
 
 ```php
 use WPBoilerplate\AccessControl\AccessControlManager;
 
 // File scope — available to all hooks below via `use ( $manager )`.
-$manager = new AccessControlManager(
-    'my_plugin_access_control_providers', // provider filter tag
-    'my_plugin'                            // table slug (required)
-);
+$manager = new AccessControlManager( 'my_plugin_access_control_providers' );
 ```
 
 `AccessControlManager` owns a `RuleQuery` internally. Instantiating it
 registers `RuleTable` via BerlinDB, which creates or upgrades the
-`{prefix}my_plugin_access_control` table automatically on `admin_init`.
+`{prefix}wpb_access_control` table automatically on `admin_init`.
 
 > **Need to wait for other plugins first?** Use a reference capture instead:
 >
 > ```php
 > $manager = null;
 > add_action( 'plugins_loaded', function () use ( &$manager ) {
->     $manager = new AccessControlManager(
->         'my_plugin_access_control_providers',
->         'my_plugin'
->     );
+>     $manager = new AccessControlManager( 'my_plugin_access_control_providers' );
 > } );
 > // All subsequent hooks must also use `&$manager`.
 > ```
@@ -147,10 +136,7 @@ use WPBoilerplate\AccessControl\AccessControlManager;
 require_once __DIR__ . '/vendor/autoload_packages.php';
 
 // 2. Create the manager at file scope — captured by all hooks via `use ( $manager )`.
-$manager = new AccessControlManager(
-    'my_plugin_access_control_providers', // provider filter tag
-    'my_plugin'                            // table slug (required)
-);
+$manager = new AccessControlManager( 'my_plugin_access_control_providers' );
 
 // 3. Expose the REST API.
 add_action( 'rest_api_init', function () use ( $manager ) {
@@ -202,7 +188,6 @@ add_action( 'admin_enqueue_scripts', function ( string $hook ) use ( &$settings_
 
     // Pass config to the component via window.wpbAcConfig.
     wp_localize_script( 'wpb-ac-ui', 'wpbAcConfig', [
-        'pluginSlug'  => 'my_plugin',     // required — must match the PHP table slug
         'namespace'   => 'my-plugin',
         'resourceKey' => 'settings-page',
         'restApiRoot' => get_rest_url(),
@@ -319,7 +304,6 @@ add_action( 'admin_enqueue_scripts', function ( string $hook ) use ( $page_hook 
 
     // Pass configuration to the component via window.wpbAcConfig.
     wp_localize_script( 'wpb-ac-ui', 'wpbAcConfig', [
-        'pluginSlug'  => 'my_plugin',  // required — must match the PHP table slug
         'namespace'   => 'my-namespace',
         'resourceKey' => 'my-resource',
         'restApiRoot' => get_rest_url(),
@@ -347,8 +331,7 @@ add_action( 'my_plugin_settings_page', function () {
 
 | Prop | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
-| `pluginSlug` | `string` | ✅ | — | Consumer slug — must match the PHP `table_slug`. Used to build every REST URL (`/wpb-ac/v1/{pluginSlug}/...`). |
-| `namespace` | `string` | ✅ | — | Resource namespace, e.g. `"mcp"` |
+| `namespace` | `string` | ✅ | — | Access-control namespace, e.g. `"mcp"` |
 | `resourceKey` | `string` | ✅ | — | Resource key within the namespace |
 | `restApiRoot` | `string` | ✅ | — | WP REST API root URL (`get_rest_url()`) |
 | `nonce` | `string` | ✅ | — | `wp_create_nonce('wp_rest')` |
@@ -372,7 +355,6 @@ apiFetch.use( apiFetch.createNonceMiddleware( wpbAcConfig.nonce ) );
 import { createRoot } from '@wordpress/element';
 createRoot( document.getElementById( 'my-ac-panel' ) ).render(
     <AccessControl
-        pluginSlug="my_plugin"
         namespace="my-namespace"
         resourceKey="my-resource"
         restApiRoot={ wpbAcConfig.restApiRoot }
@@ -431,9 +413,7 @@ $rule = $manager->get_query()->get_rule( 'my-namespace', 'my-resource' );
 
 ## REST API
 
-REST namespace: **`wpb-ac/v1`**. Every route is scoped under the consumer's
-table slug — `{slug}` in the paths below is the same string you pass to
-`new AccessControlManager(...)`.
+REST namespace: **`wpb-ac/v1`**
 
 All endpoints require `manage_options` (administrator) by default.
 Use the `wpb_access_control_rest_permission` filter to override.
@@ -442,16 +422,16 @@ Use the `wpb_access_control_rest_permission` filter to override.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/{slug}/rules/{namespace}/{key}` | Read the current rule |
-| `PUT` | `/{slug}/rules/{namespace}/{key}` | Create or replace a rule |
-| `DELETE` | `/{slug}/rules/{namespace}/{key}` | Clear a rule (revert to unrestricted) |
-| `DELETE` | `/{slug}/namespaces/{namespace}` | Purge all rules for a namespace |
-| `GET` | `/{slug}/providers` | List registered providers and their options |
-| `GET` | `/{slug}/users?search=...&limit=10` | Search WordPress users |
+| `GET` | `/rules/{namespace}/{key}` | Read the current rule |
+| `PUT` | `/rules/{namespace}/{key}` | Create or replace a rule |
+| `DELETE` | `/rules/{namespace}/{key}` | Clear a rule (revert to unrestricted) |
+| `DELETE` | `/namespaces/{namespace}` | Purge all rules for a namespace |
+| `GET` | `/providers` | List registered providers and their options |
+| `GET` | `/users?search=...&limit=10` | Search WordPress users |
 
 > **Slashes in namespace**: The `{namespace}` URL segment cannot contain
 > literal slashes — encode them as `%2F`:
-> `.../my_plugin/rules/procureco%2Fv1/my-key`.
+> `.../rules/procureco%2Fv1/my-key`.
 > The `{key}` segment allows literal slashes.
 
 ### Request / response shapes
@@ -521,28 +501,28 @@ Authorization: Basic base64(username:application_password)
 #### cURL
 
 ```bash
-# Read  (replace 'my_plugin' with your slug throughout)
+# Read
 curl -H "X-WP-Nonce: <nonce>" \
-  https://example.com/wp-json/wpb-ac/v1/my_plugin/rules/my-namespace/my-resource
+  https://example.com/wp-json/wpb-ac/v1/rules/my-namespace/my-resource
 
 # Set
 curl -X PUT \
   -H "X-WP-Nonce: <nonce>" \
   -H "Content-Type: application/json" \
   -d '{"ac_key":"wp_role","ac_options":["editor","author"]}' \
-  https://example.com/wp-json/wpb-ac/v1/my_plugin/rules/my-namespace/my-resource
+  https://example.com/wp-json/wpb-ac/v1/rules/my-namespace/my-resource
 
 # Namespace with slashes
 curl -X PUT \
   -H "X-WP-Nonce: <nonce>" \
   -H "Content-Type: application/json" \
   -d '{"ac_key":"wp_role","ac_options":["editor"]}' \
-  https://example.com/wp-json/wpb-ac/v1/my_plugin/rules/procureco%2Fv1/endpoints%2Flist
+  https://example.com/wp-json/wpb-ac/v1/rules/procureco%2Fv1/endpoints%2Flist
 
 # Clear
 curl -X DELETE \
   -H "X-WP-Nonce: <nonce>" \
-  https://example.com/wp-json/wpb-ac/v1/my_plugin/rules/my-namespace/my-resource
+  https://example.com/wp-json/wpb-ac/v1/rules/my-namespace/my-resource
 ```
 
 #### PHP (`wp_remote_request`)
@@ -550,14 +530,14 @@ curl -X DELETE \
 ```php
 // Read
 $response = wp_remote_get(
-    rest_url( 'wpb-ac/v1/my_plugin/rules/my-namespace/my-resource' ),
+    rest_url( 'wpb-ac/v1/rules/my-namespace/my-resource' ),
     [ 'headers' => [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] ]
 );
 $rule = json_decode( wp_remote_retrieve_body( $response ), true );
 
 // Set
 wp_remote_request(
-    rest_url( 'wpb-ac/v1/my_plugin/rules/my-namespace/my-resource' ),
+    rest_url( 'wpb-ac/v1/rules/my-namespace/my-resource' ),
     [
         'method'  => 'PUT',
         'headers' => [
@@ -574,31 +554,28 @@ wp_remote_request(
 ```js
 import apiFetch from '@wordpress/api-fetch';
 
-const slug = 'my_plugin'; // must match the PHP table slug
-
 // Read
-const rule = await apiFetch( { path: `/wpb-ac/v1/${slug}/rules/my-namespace/my-resource` } );
+const rule = await apiFetch( { path: '/wpb-ac/v1/rules/my-namespace/my-resource' } );
 
 // Set
 await apiFetch( {
-    path:   `/wpb-ac/v1/${slug}/rules/my-namespace/my-resource`,
+    path:   '/wpb-ac/v1/rules/my-namespace/my-resource',
     method: 'PUT',
     data:   { ac_key: 'wp_role', ac_options: [ 'editor', 'author' ] },
 } );
 
 // Search users (for the wp_user provider UI)
-const users = await apiFetch( { path: `/wpb-ac/v1/${slug}/users?search=jane&limit=10` } );
+const users = await apiFetch( { path: '/wpb-ac/v1/users?search=jane&limit=10' } );
 
 // List providers (for building a custom UI)
-const providers = await apiFetch( { path: `/wpb-ac/v1/${slug}/providers` } );
+const providers = await apiFetch( { path: '/wpb-ac/v1/providers' } );
 ```
 
 #### Vanilla `fetch`
 
 ```js
 const nonce  = document.querySelector( 'meta[name="wp-rest-nonce"]' )?.content;
-const slug   = 'my_plugin';
-const apiUrl = `/wp-json/wpb-ac/v1/${slug}`;
+const apiUrl = '/wp-json/wpb-ac/v1';
 
 // Read
 const rule = await fetch( `${apiUrl}/rules/my-namespace/my-resource`, {
@@ -876,13 +853,7 @@ the consuming plugin.
 
 ## Database Table Reference
 
-Table: `{prefix}{slug}_access_control` — one per consumer (e.g.
-`wp_mcp_access_control`, `wp_abilities_access_control`).
-DB layer: BerlinDB `^3.0`  ·  Schema version: `202605120001`
-
-Each consumer's table is created on the first `admin_init` after the
-manager is instantiated. The schema is identical across consumers; only
-the name and the `wpb_ac_{slug}_db_version` option differ.
+Table: `{prefix}wpb_access_control`  ·  DB layer: BerlinDB `^2.0`  ·  Schema version: `202605120001`
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -904,71 +875,3 @@ Indexes: `PRIMARY KEY (id)` · `UNIQUE (namespace, key(191), access_control_valu
 | `everyone` | One row: `access_control_key='everyone'`, `access_control_value=''` |
 | `wp_role` + `['editor','author']` | Two rows, both `access_control_key='wp_role'`; values `'editor'`, `'author'` |
 | `wp_user` + `['1','42']` | Two rows, both `access_control_key='wp_user'`; values `'1'`, `'42'` |
-
----
-
-## Upgrading from 1.x
-
-v2.0.0 introduces a required `$table_slug` constructor argument. Each
-consumer plugin now owns its own table, object-cache group, and REST
-route prefix — fixing the silent collision when two plugins embed the
-library on the same WordPress install.
-
-### 1. Update the manager constructor
-
-```diff
-- $manager = new AccessControlManager( 'my_plugin_access_control_providers' );
-+ $manager = new AccessControlManager(
-+     'my_plugin_access_control_providers',
-+     'my_plugin' // table slug: ^[a-z0-9_]{1,32}$
-+ );
-```
-
-Invalid slugs throw `\InvalidArgumentException` immediately.
-
-### 2. Update `wpbAcConfig` / React props
-
-```diff
-  wp_localize_script( 'wpb-ac-ui', 'wpbAcConfig', [
-+     'pluginSlug'  => 'my_plugin',
-      'namespace'   => 'my-namespace',
-      'resourceKey' => 'my-resource',
-      // …
-  ] );
-```
-
-### 3. Update REST URLs
-
-Every endpoint moves under `/wpb-ac/v1/{slug}/...`:
-
-```diff
-- GET    /wpb-ac/v1/rules/{namespace}/{key}
-+ GET    /wpb-ac/v1/{slug}/rules/{namespace}/{key}
-
-- GET    /wpb-ac/v1/providers
-+ GET    /wpb-ac/v1/{slug}/providers
-
-- GET    /wpb-ac/v1/users?search=...
-+ GET    /wpb-ac/v1/{slug}/users?search=...
-
-- DELETE /wpb-ac/v1/namespaces/{namespace}
-+ DELETE /wpb-ac/v1/{slug}/namespaces/{namespace}
-```
-
-### 4. (Optional) Migrate existing rows
-
-The library **does not** auto-migrate from `{prefix}wpb_access_control`.
-Run a one-off SQL copy from your plugin's update routine, filtering by
-the namespaces *your* plugin owns:
-
-```sql
-INSERT INTO {prefix}my_plugin_access_control
-    ( namespace, `key`, access_control_key, access_control_value, created_at, updated_at )
-SELECT
-      namespace, `key`, access_control_key, access_control_value, created_at, updated_at
-FROM  {prefix}wpb_access_control
-WHERE namespace IN ( 'your-namespace-1', 'your-namespace-2' );
-```
-
-Drop the legacy table only after **every** consumer plugin on the site
-has upgraded — otherwise an un-upgraded plugin will lose its rules.
