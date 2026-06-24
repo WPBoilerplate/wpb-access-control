@@ -6,7 +6,9 @@
  *
  * Required props
  * --------------
- * @param {string}   namespace    Access-control namespace, e.g. "mcp".
+ * @param {string}   pluginSlug   Consumer slug (matches the PHP table_slug).
+ *                                Every REST URL is prefixed with /{pluginSlug}/.
+ * @param {string}   namespace    Resource namespace, e.g. "procureco/v1".
  * @param {string}   resourceKey  Resource key, e.g. "server".
  * @param {string}   restApiRoot  WP REST API root URL, e.g. "https://site.com/wp-json".
  * @param {string}   nonce        wp_create_nonce('wp_rest') value.
@@ -46,6 +48,7 @@ import UserSearchPanel from './components/UserSearchPanel';
 const NO_ACCESS = '';
 
 export function AccessControl( {
+	pluginSlug,
 	namespace,
 	resourceKey,
 	restApiRoot,
@@ -119,9 +122,9 @@ export function AccessControl( {
 		let cancelled = false;
 
 		Promise.all( [
-			apiFetch( { url: `${ restApiRoot }/wpb-ac/v1/providers` } ),
+			apiFetch( { url: `${ restApiRoot }/wpb-ac/v1/${ pluginSlug }/providers` } ),
 			apiFetch( {
-				url: `${ restApiRoot }/wpb-ac/v1/rules/${ encodedNs }/${ resourceKey }`,
+				url: `${ restApiRoot }/wpb-ac/v1/${ pluginSlug }/rules/${ encodedNs }/${ resourceKey }`,
 			} ),
 		] )
 			.then( ( [ provs, rule ] ) => {
@@ -145,7 +148,7 @@ export function AccessControl( {
 		return () => {
 			cancelled = true;
 		};
-	}, [ restApiRoot, encodedNs, resourceKey ] ); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [ pluginSlug, restApiRoot, encodedNs, resourceKey ] ); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const handleProviderChange = useCallback( ( newKey ) => {
 		setSelectedKey( newKey );
@@ -183,12 +186,12 @@ export function AccessControl( {
 		try {
 			if ( selectedKey === NO_ACCESS ) {
 				await apiFetch( {
-					url: `${ restApiRoot }/wpb-ac/v1/rules/${ encodedNs }/${ resourceKey }`,
+					url: `${ restApiRoot }/wpb-ac/v1/${ pluginSlug }/rules/${ encodedNs }/${ resourceKey }`,
 					method: 'DELETE',
 				} );
 			} else {
 				await apiFetch( {
-					url: `${ restApiRoot }/wpb-ac/v1/rules/${ encodedNs }/${ resourceKey }`,
+					url: `${ restApiRoot }/wpb-ac/v1/${ pluginSlug }/rules/${ encodedNs }/${ resourceKey }`,
 					method: 'PUT',
 					data: { ac_key: selectedKey, ac_options: selectedOptions },
 				} );
@@ -204,7 +207,7 @@ export function AccessControl( {
 		} finally {
 			setIsSaving( false );
 		}
-	}, [ selectedKey, selectedOptions, encodedNs, resourceKey, restApiRoot, onSave ] );
+	}, [ selectedKey, selectedOptions, pluginSlug, encodedNs, resourceKey, restApiRoot, onSave ] );
 
 	// Notify the parent whenever the selection changes and loading is complete.
 	// Fires on initial data load (isLoading false) and on every user interaction.
@@ -270,6 +273,7 @@ export function AccessControl( {
 					</div>
 					<div className="wpb-ac__control">
 						<UserSearchPanel
+							pluginSlug={ pluginSlug }
 							restApiRoot={ restApiRoot }
 							selectedUsers={ selectedUsers }
 							onAdd={ handleAddUser }

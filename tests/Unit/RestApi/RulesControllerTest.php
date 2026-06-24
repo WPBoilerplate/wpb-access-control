@@ -369,5 +369,48 @@ namespace WPBoilerplate\AccessControl\Tests\Unit\RestApi {
 			$this->assertInstanceOf( WP_Error::class, $controller->validate_key( str_repeat( 'a', RuleTable::KEY_LENGTH + 1 ) ) );
 			$this->assertTrue( $controller->validate_key( str_repeat( 'a', RuleTable::KEY_LENGTH ) ) );
 		}
+
+		// -------------------------------------------------------------------------
+		// register_routes — slug-scoped route paths (v2.0.0)
+		// -------------------------------------------------------------------------
+
+		public function test_register_routes_prefixes_every_route_with_slug(): void {
+			$registered_paths = array();
+			Functions\when( 'register_rest_route' )->alias(
+				static function ( $namespace, $route ) use ( &$registered_paths ): void {
+					$registered_paths[] = $namespace . $route;
+				}
+			);
+
+			$controller = new RulesController( $this->manager_mock(), 'mcp' );
+			$controller->register_routes();
+
+			$this->assertContains(
+				'wpb-ac/v1/mcp/rules/(?P<namespace>[^/]+)/(?P<key>.+)',
+				$registered_paths
+			);
+			$this->assertContains(
+				'wpb-ac/v1/mcp/namespaces/(?P<namespace>[^/]+)',
+				$registered_paths
+			);
+			$this->assertContains( 'wpb-ac/v1/mcp/providers', $registered_paths );
+			$this->assertContains( 'wpb-ac/v1/mcp/users', $registered_paths );
+		}
+
+		public function test_register_routes_uses_a_distinct_prefix_per_slug(): void {
+			$registered_paths = array();
+			Functions\when( 'register_rest_route' )->alias(
+				static function ( $namespace, $route ) use ( &$registered_paths ): void {
+					$registered_paths[] = $namespace . $route;
+				}
+			);
+
+			( new RulesController( $this->manager_mock(), 'plugin_a' ) )->register_routes();
+			( new RulesController( $this->manager_mock(), 'plugin_b' ) )->register_routes();
+
+			$this->assertContains( 'wpb-ac/v1/plugin_a/providers', $registered_paths );
+			$this->assertContains( 'wpb-ac/v1/plugin_b/providers', $registered_paths );
+			$this->assertNotContains( 'wpb-ac/v1/providers', $registered_paths );
+		}
 	}
 }

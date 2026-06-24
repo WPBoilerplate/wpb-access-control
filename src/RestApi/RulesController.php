@@ -70,12 +70,28 @@ class RulesController extends WP_REST_Controller {
 	private $manager;
 
 	/**
-	 * @since 1.0.0
+	 * Consumer slug — every registered route is prefixed with `/{slug}/...`
+	 * so two consumer plugins do not collide on the same REST route.
 	 *
-	 * @param AccessControlManager $manager Provider registry instance.
+	 * @since 2.0.0
+	 *
+	 * @var string
 	 */
-	public function __construct( AccessControlManager $manager ) {
-		$this->manager = $manager;
+	private $table_slug;
+
+	/**
+	 * @since 1.0.0
+	 * @since 2.0.0 `$table_slug` parameter added — every route path is
+	 *              prefixed with this slug so consumers do not collide.
+	 *
+	 * @param AccessControlManager $manager    Provider registry instance.
+	 * @param string               $table_slug Slug to scope routes under.
+	 *                                         Caller (`AccessControlManager`)
+	 *                                         already validates it.
+	 */
+	public function __construct( AccessControlManager $manager, string $table_slug = '' ) {
+		$this->manager    = $manager;
+		$this->table_slug = $table_slug;
 	}
 
 	/**
@@ -91,10 +107,12 @@ class RulesController extends WP_REST_Controller {
 	 */
 	public function register_routes(): void {
 
-		// GET / PUT / DELETE  /rules/{namespace}/{key}
+		$slug = '/' . $this->table_slug;
+
+		// GET / PUT / DELETE  /{slug}/rules/{namespace}/{key}
 		register_rest_route(
 			$this->namespace,
-			'/rules/(?P<namespace>[^/]+)/(?P<key>.+)',
+			$slug . '/rules/(?P<namespace>[^/]+)/(?P<key>.+)',
 			array(
 				array(
 					'methods'             => \WP_REST_Server::READABLE,
@@ -133,10 +151,10 @@ class RulesController extends WP_REST_Controller {
 			)
 		);
 
-		// DELETE  /namespaces/{namespace}
+		// DELETE  /{slug}/namespaces/{namespace}
 		register_rest_route(
 			$this->namespace,
-			'/namespaces/(?P<namespace>[^/]+)',
+			$slug . '/namespaces/(?P<namespace>[^/]+)',
 			array(
 				'methods'             => \WP_REST_Server::DELETABLE,
 				'callback'            => array( $this, 'purge_namespace' ),
@@ -153,10 +171,10 @@ class RulesController extends WP_REST_Controller {
 			)
 		);
 
-		// GET  /providers
+		// GET  /{slug}/providers
 		register_rest_route(
 			$this->namespace,
-			'/providers',
+			$slug . '/providers',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
 				'callback'            => array( $this, 'get_providers' ),
@@ -164,10 +182,10 @@ class RulesController extends WP_REST_Controller {
 			)
 		);
 
-		// GET  /users?search=...&limit=10
+		// GET  /{slug}/users?search=...&limit=10
 		register_rest_route(
 			$this->namespace,
-			'/users',
+			$slug . '/users',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
 				'callback'            => array( $this, 'search_users' ),

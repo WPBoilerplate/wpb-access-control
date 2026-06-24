@@ -7,7 +7,10 @@
  *
  * Usage
  * -----
- *   $manager = new AccessControlManager( 'my_plugin_access_control_providers' );
+ *   $manager = new AccessControlManager(
+ *       'my_plugin_access_control_providers', // filter tag for provider registration
+ *       'my_plugin'                            // table slug — required, see Slug::PATTERN
+ *   );
  *
  *   if ( ! $manager->user_has_access( get_current_user_id(), 'my-namespace', 'my-resource' ) ) {
  *       wp_die( 'Access denied.', 403 );
@@ -40,6 +43,7 @@ namespace WPBoilerplate\AccessControl;
 
 use WPBoilerplate\AccessControl\Database\Rule\RuleQuery;
 use WPBoilerplate\AccessControl\RestApi\RulesController;
+use WPBoilerplate\AccessControl\Slug;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -62,6 +66,16 @@ class AccessControlManager {
 	private $providers_filter;
 
 	/**
+	 * Consumer-supplied slug. Determines the table name, cache group, and
+	 * REST route prefix for this manager instance. See {@see Slug::PATTERN}.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @var string
+	 */
+	private $table_slug;
+
+	/**
 	 * Registered provider instances, keyed by provider ID.
 	 *
 	 * @var array<string, AbstractProvider>
@@ -77,18 +91,37 @@ class AccessControlManager {
 
 	/**
 	 * @since 1.0.0
+	 * @since 2.0.0 `$table_slug` parameter added and made required so each
+	 *              consumer plugin owns its own table, cache group, and REST
+	 *              route prefix.
 	 *
 	 * @param string $providers_filter WordPress filter tag for provider registration.
+	 * @param string $table_slug       Per-consumer slug. See {@see Slug::PATTERN}.
+	 *
+	 * @throws \InvalidArgumentException When the slug fails validation.
 	 */
-	public function __construct( string $providers_filter = 'wpb_access_control_providers' ) {
+	public function __construct( string $providers_filter, string $table_slug ) {
 		$this->providers_filter = $providers_filter;
-		$this->query            = new RuleQuery();
+		$this->table_slug       = Slug::sanitize( $table_slug );
+		$this->query            = new RuleQuery( $this->table_slug );
 
 		if ( did_action( 'init' ) ) {
 			$this->load_providers();
 		} else {
 			add_action( 'init', array( $this, 'load_providers' ), 5 );
 		}
+	}
+
+	/**
+	 * Return the slug this manager (and its table / cache group / REST
+	 * routes) is bound to.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @return string
+	 */
+	public function get_table_slug(): string {
+		return $this->table_slug;
 	}
 
 	// -------------------------------------------------------------------------
@@ -179,7 +212,7 @@ class AccessControlManager {
 	 * @return void
 	 */
 	public function register_rest_api(): void {
-		( new RulesController( $this ) )->register_routes();
+		( new RulesController( $this, $this->table_slug ) )->register_routes();
 	}
 
 	// -------------------------------------------------------------------------
