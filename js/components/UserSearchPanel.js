@@ -11,12 +11,14 @@ import apiFetch from '@wordpress/api-fetch';
 
 /**
  * @param {Object}   props
+ * @param {string}   props.pluginSlug    Consumer slug — every REST URL is prefixed with /{pluginSlug}/.
  * @param {string}   props.restApiRoot    WordPress REST API root URL.
  * @param {Array}    props.selectedUsers  Currently selected users [{id, login, display_name}].
  * @param {Function} props.onAdd         Called with a user object when selected from dropdown.
  * @param {Function} props.onRemove      Called with user ID when × is clicked.
  */
 export default function UserSearchPanel( {
+	pluginSlug,
 	restApiRoot,
 	selectedUsers,
 	onAdd,
@@ -47,7 +49,7 @@ export default function UserSearchPanel( {
 				return;
 			}
 			apiFetch( {
-				url: `${ restApiRoot }/wpb-ac/v1/users?search=${ encodeURIComponent( term ) }`,
+				url: `${ restApiRoot }/wpb-ac/v1/${ pluginSlug }/users?search=${ encodeURIComponent( term ) }`,
 			} )
 				.then( ( data ) => {
 					setResults( data || [] );
@@ -55,7 +57,7 @@ export default function UserSearchPanel( {
 				} )
 				.catch( () => setResults( [] ) );
 		},
-		[ restApiRoot ]
+		[ pluginSlug, restApiRoot ]
 	);
 
 	const handleSearchChange = useCallback(
