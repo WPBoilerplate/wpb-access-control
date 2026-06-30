@@ -15,7 +15,6 @@
  * `window.wpbAcConfig`:
  *
  *   wp_localize_script( 'wpb-access-control', 'wpbAcConfig', [
- *       'pluginSlug'  => 'my_plugin',  // required — matches the PHP table_slug
  *       'namespace'   => 'mcp',
  *       'resourceKey' => 'server',
  *       'restApiRoot' => get_rest_url(),
@@ -44,30 +43,21 @@ if ( typeof window !== 'undefined' ) {
 	if ( root ) {
 		const config = window.wpbAcConfig || {};
 
-		if ( ! config.pluginSlug ) {
-			// eslint-disable-next-line no-console
-			console.error(
-				'wpb-access-control: window.wpbAcConfig.pluginSlug is required. ' +
-					'Pass the same slug you used in the PHP AccessControlManager constructor.'
-			);
-		} else {
-			if ( config.nonce ) {
-				apiFetch.use( apiFetch.createNonceMiddleware( config.nonce ) );
-			}
-
-			render(
-				<AccessControl
-					pluginSlug={ config.pluginSlug }
-					namespace={ config.namespace || '' }
-					resourceKey={ config.resourceKey || '' }
-					restApiRoot={ config.restApiRoot || '/wp-json' }
-					nonce={ config.nonce || '' }
-					title={ config.title }
-					description={ config.description }
-					saveLabel={ config.saveLabel }
-				/>,
-				root
-			);
+		if ( config.nonce ) {
+			apiFetch.use( apiFetch.createNonceMiddleware( config.nonce ) );
 		}
+
+		render(
+			<AccessControl
+				namespace={ config.namespace || '' }
+				resourceKey={ config.resourceKey || '' }
+				restApiRoot={ config.restApiRoot || '/wp-json' }
+				nonce={ config.nonce || '' }
+				title={ config.title }
+				description={ config.description }
+				saveLabel={ config.saveLabel }
+			/>,
+			root
+		);
 	}
 }

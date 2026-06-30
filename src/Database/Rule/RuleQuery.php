@@ -24,7 +24,6 @@
 namespace WPBoilerplate\AccessControl\Database\Rule;
 
 use BerlinDB\Database\Kern\Query;
-use WPBoilerplate\AccessControl\Slug;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -33,12 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Access-control rule query.
  *
- * Each instance is bound to a single consumer slug — the physical table,
- * object-cache group, and transient prefix are all derived from it so two
- * plugins embedding the library never collide.
- *
  * @since 1.0.0
- * @since 2.0.0 Constructor accepts a required `$table_slug` argument.
  */
 class RuleQuery extends Query {
 
@@ -46,15 +40,8 @@ class RuleQuery extends Query {
 	// BerlinDB Query configuration
 	// -------------------------------------------------------------------------
 
-	/**
-	 * Table name without `$wpdb->prefix`.
-	 *
-	 * Set per-instance in the constructor from the slug; never shared
-	 * across consumers.
-	 *
-	 * @var string
-	 */
-	protected $table_name = '';
+	/** @var string Table name without $wpdb->prefix. */
+	protected $table_name = 'wpb_access_control';
 
 	/** @var string Short alias used in SQL JOINs. */
 	protected $table_alias = 'wpac';
@@ -73,13 +60,11 @@ class RuleQuery extends Query {
 
 	/**
 	 * Object-cache group.
-	 *
-	 * Set per-instance in the constructor from the slug — `wpb_ac_{slug}`.
 	 * Must not contain colons or spaces (BerlinDB restriction).
 	 *
 	 * @var string
 	 */
-	protected $cache_group = '';
+	protected $cache_group = 'wpb_access_control';
 
 	/**
 	 * Transient TTL in seconds (7 days).
@@ -91,51 +76,26 @@ class RuleQuery extends Query {
 	const TRANSIENT_TTL = 604800;
 
 	/**
-	 * Slug this Query instance is bound to. Used to scope the transient key
-	 * prefix so two consumers do not share cached payloads.
+	 * Static guard: ensures RuleTable is instantiated exactly once per request.
+	 * BerlinDB's Table registers $wpdb->wpb_access_control, which Query reads
+	 * via get_table_name() — so Table must exist before any Query is used.
 	 *
-	 * @since 2.0.0
-	 *
-	 * @var string
+	 * @var bool
 	 */
-	private $table_slug = '';
-
-	/**
-	 * Per-slug registry of already-instantiated RuleTables.
-	 *
-	 * BerlinDB's Table registers `$wpdb->{name}`, which Query reads via
-	 * `get_table_name()`. We need exactly one Table per slug per request;
-	 * additional instantiations are no-ops at the BerlinDB layer but waste
-	 * cycles, so we guard with this registry.
-	 *
-	 * @since 2.0.0
-	 *
-	 * @var array<string,bool>
-	 */
-	private static $tables_setup_by_slug = array();
+	private static $table_setup = false;
 
 	// -------------------------------------------------------------------------
 	// Constructor
 	// -------------------------------------------------------------------------
 
 	/**
-	 * @since 2.0.0
-	 *
-	 * @param string $table_slug Consumer-supplied slug. See {@see Slug::PATTERN}.
-	 *
-	 * @throws \InvalidArgumentException When the slug fails validation.
+	 * @since 1.0.0
 	 */
-	public function __construct( string $table_slug ) {
-		$slug              = Slug::sanitize( $table_slug );
-		$this->table_slug  = $slug;
-		$this->table_name  = $slug . '_access_control';
-		$this->cache_group = 'wpb_ac_' . $slug;
-
-		if ( ! isset( self::$tables_setup_by_slug[ $slug ] ) ) {
-			self::$tables_setup_by_slug[ $slug ] = true;
-			new RuleTable( $slug );
+	public function __construct() {
+		if ( ! self::$table_setup ) {
+			self::$table_setup = true;
+			new RuleTable();
 		}
-
 		parent::__construct();
 	}
 
@@ -356,12 +316,10 @@ class RuleQuery extends Query {
 	/**
 	 * Build a deterministic WordPress transient key for a (namespace, key) pair.
 	 *
-	 * The slug is included in the MD5 input so two consumers can never collide
-	 * on a cached payload. The `wpbac_` prefix keeps every key well within
-	 * WordPress's 172-character transient limit.
+	 * MD5 keeps the name well within WordPress's 172-character transient limit
+	 * regardless of how long the namespace or key is.
 	 *
 	 * @since 1.0.0
-	 * @since 2.0.0 The slug is folded into the hash for per-consumer isolation.
 	 *
 	 * @param string $namespace Resource namespace.
 	 * @param string $key       Resource key.
@@ -369,7 +327,7 @@ class RuleQuery extends Query {
 	 * @return string Transient key, e.g. "wpbac_a1b2c3…".
 	 */
 	private function transient_key( string $namespace, string $key ): string {
-		return 'wpbac_' . md5( $this->table_slug . '|' . $namespace . '|' . $key );
+		return 'wpbac_' . md5( $namespace . '|' . $key );
 	}
 
 	/**
