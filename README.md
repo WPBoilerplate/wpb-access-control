@@ -14,15 +14,17 @@ The library owns its own database table (managed by **BerlinDB**), ships WordPre
 2. [Installation](#installation)
 3. [PHP Setup](#php-setup)
 4. [Complete Integration Example](#complete-integration-example)
-5. [Checking Access](#checking-access)
-6. [React Component UI](#react-component-ui)
-7. [Reading & Writing Rules (PHP)](#reading--writing-rules-php)
-8. [REST API](#rest-api)
-9. [Events](#events)
-10. [Custom Providers](#custom-providers)
-11. [Built-in Providers](#built-in-providers)
-12. [Important Notes](#important-notes)
-13. [Database Table Reference](#database-table-reference)
+5. [Two Plugins on One Site](#two-plugins-on-one-site)
+6. [Checking Access](#checking-access)
+7. [React Component UI](#react-component-ui)
+8. [Reading & Writing Rules (PHP)](#reading--writing-rules-php)
+9. [REST API](#rest-api)
+10. [Events](#events)
+11. [Custom Providers](#custom-providers)
+12. [Built-in Providers](#built-in-providers)
+13. [Important Notes](#important-notes)
+14. [Database Table Reference](#database-table-reference)
+15. [Upgrading from 1.x](#upgrading-from-1x)
 
 ---
 
@@ -209,6 +211,73 @@ add_action( 'template_redirect', function () use ( $manager ) {
 > - `$manager` is declared once at file scope; all hooks capture it with `use ( $manager )`.
 > - `add_submenu_page()` (or `add_menu_page()`) returns the hook suffix — store it and compare in `admin_enqueue_scripts` to load assets only on your page.
 > - `vendor/autoload_packages.php` is the Jetpack Autoloader entry point, **not** the standard `vendor/autoload.php`.
+
+---
+
+## Two Plugins on One Site
+
+The whole reason `$table_slug` exists: when two consumer plugins embed this
+library on the same WordPress install, each gets its **own** table, cache
+group, transient keys, and REST routes. They cannot collide. Pick a distinct
+slug per plugin — that is the only coordination required between them.
+
+### Plugin A — `mcp-server`
+
+```php
+// Bootstrap
+$manager = new AccessControlManager(
+    'mcp_server_access_control_providers',
+    'mcp'                                  // → wp_mcp_access_control
+);
+
+// React config
+wp_localize_script( 'wpb-ac-ui', 'wpbAcConfig', [
+    'pluginSlug'  => 'mcp',
+    'namespace'   => 'mcp/v1',
+    'resourceKey' => 'server',
+    'restApiRoot' => get_rest_url(),
+    'nonce'       => wp_create_nonce( 'wp_rest' ),
+] );
+```
+
+### Plugin B — `abilities-manager`
+
+```php
+// Bootstrap
+$manager = new AccessControlManager(
+    'abilities_manager_access_control_providers',
+    'abilities'                            // → wp_abilities_access_control
+);
+
+// React config
+wp_localize_script( 'wpb-ac-ui', 'wpbAcConfig', [
+    'pluginSlug'  => 'abilities',
+    'namespace'   => 'abilities/v1',
+    'resourceKey' => 'editor-panel',
+    'restApiRoot' => get_rest_url(),
+    'nonce'       => wp_create_nonce( 'wp_rest' ),
+] );
+```
+
+### What you actually get
+
+| Surface | Plugin A (`mcp`) | Plugin B (`abilities`) |
+|---|---|---|
+| Table | `{prefix}mcp_access_control` | `{prefix}abilities_access_control` |
+| Cache group | `wpb_ac_mcp` | `wpb_ac_abilities` |
+| Schema version option | `wpb_ac_mcp_db_version` | `wpb_ac_abilities_db_version` |
+| REST routes | `/wpb-ac/v1/mcp/...` | `/wpb-ac/v1/abilities/...` |
+| Providers filter tag | `mcp_server_access_control_providers` | `abilities_manager_access_control_providers` |
+
+Both managers can call `$manager->register_rest_api()` in the same request;
+the slug-scoped paths mean WordPress registers two distinct sets of routes
+instead of clobbering each other.
+
+> **Picking a slug.** Must match `^[a-z0-9_]{1,32}$` — lowercase ASCII
+> letters, digits, and underscores; 1 to 32 characters. Invalid slugs
+> throw `\InvalidArgumentException` at construction time, never reaching
+> SQL. Recommend using your plugin's `composer.json` name (or a short
+> form of it) so the slug is stable and obviously yours.
 
 ---
 
