@@ -140,16 +140,37 @@ class AccessControlManager {
 			new WpRoleProvider(),
 			new WpUserProvider(),
 			new WpCapabilityProvider(),
-			new BuddyBossProfileTypeProvider(),
-			new MemberPressMembershipProvider(),
 		);
 
 		/**
-		 * Filter the list of registered access-control providers.
+		 * Register additional access-control providers globally.
+		 *
+		 * Extension plugins (e.g. AcrossAI User Access Pro) hook this filter
+		 * once to make their providers available to every consumer of the
+		 * library, without any per-consumer bootstrap code. Fires *before*
+		 * the consumer-specific filter, so consumers can still veto or
+		 * customise anything an extension registered.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @param AbstractProvider[] $providers  Providers registered so far.
+		 * @param string             $table_slug Per-consumer slug — extensions
+		 *                                       can inspect this to opt out of
+		 *                                       specific consumers if desired.
+		 */
+		$default_providers = (array) apply_filters(
+			'wpb_access_control_register_providers',
+			$default_providers,
+			$this->table_slug
+		);
+
+		/**
+		 * Filter the list of registered access-control providers for this
+		 * consumer instance only.
 		 *
 		 * @since 1.0.0
 		 *
-		 * @param AbstractProvider[] $providers Default providers list.
+		 * @param AbstractProvider[] $providers Providers after the global filter has run.
 		 */
 		$providers = (array) apply_filters( $this->providers_filter, $default_providers );
 

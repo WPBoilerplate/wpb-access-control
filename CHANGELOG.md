@@ -1,5 +1,43 @@
 # Changelog
 
+## 3.0.0
+
+**BREAKING.** The two plugin-dependent providers shipped in v1.4.0 / v1.5.0 have been extracted into a separate WordPress add-on plugin — **AcrossAI User Access Pro** ([`acrossai/user-access-pro`](https://github.com/acrossai-co/user-access-pro)) — along with eight new integrations. The library now ships only the three WordPress-native providers (`wp_role`, `wp_user`, `wp_capability`) plus a new extension point for third-party add-ons.
+
+### Removed classes
+
+- `BuddyBossProfileTypeProvider` (`bb_profile_type`) — added in v1.4.0
+- `MemberPressMembershipProvider` (`mepr_membership`) — added in v1.5.0
+
+The corresponding v1.6.0 opt-in filters (`wpb_access_control_bb_profile_type_enabled`, `wpb_access_control_mepr_membership_enabled`) are also gone. To get either integration back, install and activate **AcrossAI User Access Pro** — it registers replacements automatically. The new plugin uses fresh IDs prefixed `uap_` (`uap_bb_profile_type`, `uap_mepr`) so any pre-existing DB rules with the old IDs will not match. Since both providers defaulted to `is_available() === false` in v1.6.0 through v2.0.x, most sites had no live rules to migrate.
+
+### Added
+
+- **`wpb_access_control_register_providers` global filter.** New `apply_filters()` call in `AccessControlManager::load_providers()` — fires before the per-consumer filter with `( array $providers, string $table_slug )`. Add-on plugins hook this once and their providers appear in every consumer of the library. See the "Writing a third-party provider add-on" section in the README.
+
+### AcrossAI User Access Pro bundles 10 integrations
+
+Along with replacements for BuddyBoss and MemberPress, the new add-on ships eight integrations that were never in this library:
+
+- LearnDash Group (`uap_ld_group`)
+- LifterLMS Membership (`uap_llms`)
+- Paid Memberships Pro (`uap_pmpro`)
+- Restrict Content Pro (`uap_rcp`)
+- WooCommerce Memberships (`uap_wc`)
+- s2Member Level (`uap_s2`)
+- Wishlist Member Level (`uap_wlm`)
+- Memberium Membership (`uap_memberium`)
+
+Once activated, every option lights up in the "Who can access" dropdown automatically whenever the underlying dependency plugin is present — no per-consumer bootstrap code required.
+
+### Migration
+
+If you had enabled either provider via a v1.6.0 opt-in filter:
+
+1. Install **AcrossAI User Access Pro** on the site.
+2. Remove any `wpb_access_control_bb_profile_type_enabled` / `wpb_access_control_mepr_membership_enabled` filter code — the new plugin auto-enables its providers whenever the underlying dependency plugin is active.
+3. If you have live rules stored with the old IDs, migrate them: `UPDATE {prefix}{consumer}_access_control SET access_control_key = 'uap_bb_profile_type' WHERE access_control_key = 'bb_profile_type'` and `... SET access_control_key = 'uap_mepr' WHERE access_control_key = 'mepr_membership'`.
+
 ## 2.0.0
 
 **BREAKING.** Each consumer plugin now owns its own database table, object-cache group, and REST route prefix. Previously every consumer wrote into the single shared `{prefix}wpb_access_control` table — two plugins on the same WordPress install collided on storage, cache, and routes.
