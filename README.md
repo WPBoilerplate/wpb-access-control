@@ -338,12 +338,19 @@ The component has four states driven by a single **"Who can access"** dropdown:
 | **Everyone (no restriction)** | Nothing — all users can access |
 | **WordPress Role** | Checkboxes for each WordPress role |
 | **WordPress Capability** | Checkboxes for each WordPress capability (discovered across all roles) |
-| **BuddyBoss Profile Type** | Checkboxes for each BuddyBoss profile type — only visible when BuddyBoss is active *and* the consumer opts in via `wpb_access_control_bb_profile_type_enabled` |
-| **MemberPress Membership** | Checkboxes for each MemberPress membership — only visible when MemberPress is active *and* the consumer opts in via `wpb_access_control_mepr_membership_enabled` |
 | **Users** | Search-as-you-type field + selected-user tags |
 
 Custom providers registered via the filter also appear in the dropdown. If
 they expose `options`, checkboxes are rendered automatically.
+
+> **Third-party integrations (BuddyBoss, MemberPress, LearnDash, LifterLMS,
+> Paid Memberships Pro, Restrict Content Pro, WooCommerce Memberships,
+> s2Member, Wishlist Member, Memberium)** shipped in the library through
+> v2.0.x have moved to a separate add-on plugin: **AcrossAI User Access Pro**
+> (`acrossai/user-access-pro`). Install and activate it and the corresponding
+> option appears in the dropdown automatically whenever the underlying plugin
+> is active — no `add_filter` wiring required. See "Writing a third-party
+> provider add-on" below to build your own.
 
 ### Enqueue the built assets
 
@@ -813,8 +820,12 @@ correct controls dynamically without hard-coding provider IDs.
 | `wp_role` | `WpRoleProvider` | Restricts by WordPress user role. Administrator is always bypassed. |
 | `wp_user` | `WpUserProvider` | Restricts to specific WordPress users by ID. |
 | `wp_capability` | `WpCapabilityProvider` | Restricts by one or more WordPress capability slugs. Users holding **any** of the selected capabilities pass. |
-| `bb_profile_type` | `BuddyBossProfileTypeProvider` | Restricts by one or more BuddyBoss profile types (member types). **Opt-in**: requires `wpb_access_control_bb_profile_type_enabled` to return `true` *and* BuddyBoss Platform to be active. |
-| `mepr_membership` | `MemberPressMembershipProvider` | Restricts by one or more MemberPress memberships. **Opt-in**: requires `wpb_access_control_mepr_membership_enabled` to return `true` *and* MemberPress to be active. |
+
+> Providers for BuddyBoss, MemberPress, LearnDash, LifterLMS, Paid
+> Memberships Pro, Restrict Content Pro, WooCommerce Memberships, s2Member,
+> Wishlist Member, and Memberium ship in the **AcrossAI User Access Pro**
+> add-on plugin — not in this library. See "Writing a third-party provider
+> add-on" below for how to add your own.
 
 ### `WpRoleProvider` filters
 
@@ -856,56 +867,64 @@ returns true for **any** selected capability.
 | `wpb_access_control_wp_capability_options` | `(array $options): array` | Add or remove selectable capability options (e.g. to surface a custom cap that no role holds yet) |
 | `wpb_access_control_wp_capability_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final capability-based decision |
 
-### `BuddyBossProfileTypeProvider`
+---
 
-Requires the [BuddyBoss Platform](https://www.buddyboss.com/platform/) plugin
-to be active **and** the consumer plugin to opt in via the
-`wpb_access_control_bb_profile_type_enabled` filter (default `false`). When
-either condition is unmet the provider reports `is_available() === false`,
-the React dropdown hides the option, and saved rules of type
-`bb_profile_type` deny.
+## Writing a third-party provider add-on
 
-```php
-// In your consumer plugin's bootstrap — enable the BuddyBoss provider.
-add_filter( 'wpb_access_control_bb_profile_type_enabled', '__return_true' );
+Anyone can ship a WordPress plugin that adds providers to every consumer of
+`wpb-access-control` on the site, with no per-consumer bootstrap code. The
+reference implementation is
+[**AcrossAI User Access Pro**](https://github.com/acrossai-co/user-access-pro),
+which packages 10 membership-plugin integrations this way.
+
+The mechanism is one global filter registered by the library since v3.0.0:
+
+```
+apply_filters( 'wpb_access_control_register_providers', $providers, $table_slug )
 ```
 
-Options are profile-type slugs (the same identifiers BuddyBoss exposes via
-`bp_get_member_types()`). Both admin-created types (Profile Types CPT) and
-code-registered types via `bp_register_member_type()` appear in the list.
-Access is granted when the requesting user is assigned to **any** of the
-selected profile types (via `bp_get_member_type()`).
+It fires **once per consumer instance** during `load_providers()`, before
+the consumer-specific filter, and receives the running providers array plus
+the consumer's `$table_slug`. Any provider you append here is visible to
+that consumer's REST `/providers` endpoint and its React dropdown.
 
-| Filter | Signature | Description |
-|--------|-----------|-------------|
-| `wpb_access_control_bb_profile_type_enabled` | `(bool $enabled): bool` | **Opt-in gate.** Default `false`; must return `true` for the provider to fire |
-| `wpb_access_control_bb_profile_type_options` | `(array $options): array` | Add or remove selectable profile-type options |
-| `wpb_access_control_bb_profile_type_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final profile-type-based decision |
-
-### `MemberPressMembershipProvider`
-
-Requires the [MemberPress](https://memberpress.com/) plugin to be active
-**and** the consumer plugin to opt in via the
-`wpb_access_control_mepr_membership_enabled` filter (default `false`). When
-either condition is unmet the provider reports `is_available() === false`,
-the React dropdown hides the option, and saved rules of type
-`mepr_membership` deny.
+### Minimal add-on skeleton
 
 ```php
-// In your consumer plugin's bootstrap — enable the MemberPress provider.
-add_filter( 'wpb_access_control_mepr_membership_enabled', '__return_true' );
+<?php
+/**
+ * Plugin Name: My Access Control Providers
+ */
+
+add_action( 'plugins_loaded', function () {
+    // Base library must already be loaded by a consumer plugin's autoloader.
+    if ( ! class_exists( \WPBoilerplate\AccessControl\AbstractProvider::class ) ) {
+        return;
+    }
+    require_once __DIR__ . '/vendor/autoload.php';
+
+    add_filter(
+        'wpb_access_control_register_providers',
+        function ( array $providers /*, string $table_slug */ ) {
+            $providers[] = new \MyPlugin\Providers\Widget();
+            return $providers;
+        }
+    );
+}, 20 );
 ```
 
-Options are MemberPress membership post IDs (stored as strings — the
-underlying `memberpressproduct` CPT post IDs). Access is granted when the
-user's active product subscriptions (`MeprUser::active_product_subscriptions()`)
-intersect any selected membership ID.
+Providers extend `\WPBoilerplate\AccessControl\AbstractProvider` and
+implement `get_id()`, `get_label()`, `get_options()`, and
+`user_has_access()`. Override `is_available()` when the provider depends on
+an optional plugin — the library's REST layer forwards that flag to the
+React UI so unavailable options are hidden automatically.
 
-| Filter | Signature | Description |
-|--------|-----------|-------------|
-| `wpb_access_control_mepr_membership_enabled` | `(bool $enabled): bool` | **Opt-in gate.** Default `false`; must return `true` for the provider to fire |
-| `wpb_access_control_mepr_membership_options` | `(array $options): array` | Add or remove selectable membership options |
-| `wpb_access_control_mepr_membership_has_access` | `(bool $result, int $user_id, array $selected): bool` | Override the final membership-based decision |
+To scope an add-on to specific consumers, inspect the `$table_slug`
+argument and short-circuit for consumers you don't want to inject into.
+
+Consumers can still filter the resulting list per-instance via the
+consumer-specific filter passed to `AccessControlManager`, so they retain
+final say over what shows up in their own UI.
 
 ---
 

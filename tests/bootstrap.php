@@ -51,36 +51,3 @@ if ( ! function_exists( 'sanitize_textarea_field' ) ) {
 		return trim( $str );
 	}
 }
-
-// ---------------------------------------------------------------------------
-// MemberPress test stubs — required by MemberPressMembershipProviderTest.
-//
-// PHP constants and class declarations persist for the lifetime of the
-// process, so they belong here (loaded once) rather than inside any test
-// file's namespace block.
-// ---------------------------------------------------------------------------
-if ( ! defined( 'MEPR_VERSION' ) ) {
-	define( 'MEPR_VERSION', '1.0.0-test' );
-}
-if ( ! class_exists( 'MeprUser' ) ) {
-	/**
-	 * Minimal stub of MemberPress's MeprUser model.
-	 *
-	 * Tests set `MeprUser::$next_subscriptions` before invoking
-	 * `user_has_access()` to drive `active_product_subscriptions()`.
-	 */
-	class MeprUser {
-		/** @var array<int, mixed> */
-		public static $next_subscriptions = array();
-
-		public $ID = 0;
-
-		public function __construct( $user_id = 0 ) {
-			$this->ID = (int) $user_id;
-		}
-
-		public function active_product_subscriptions(): array {
-			return self::$next_subscriptions;
-		}
-	}
-}

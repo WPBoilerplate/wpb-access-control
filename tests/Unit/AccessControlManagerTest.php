@@ -153,21 +153,93 @@ final class AccessControlManagerTest extends TestCase {
 				)
 			);
 
-		$reflection = new \ReflectionClass( AccessControlManager::class );
-		$manager    = $reflection->newInstanceWithoutConstructor();
-
-		$filter_property = $reflection->getProperty( 'providers_filter' );
-		$filter_property->setAccessible( true );
-		$filter_property->setValue( $manager, 'custom_provider_filter' );
-
-		$providers_property = $reflection->getProperty( 'providers' );
-		$providers_property->setAccessible( true );
-		$providers_property->setValue( $manager, array() );
+		$manager = $this->make_bare_manager( 'custom_provider_filter', 'my_plugin' );
 
 		$manager->load_providers();
 
 		$this->assertSame( array( 'first', 'second' ), array_keys( $manager->get_providers() ) );
 		$this->assertSame( 'first', $manager->get_provider( 'first' )->get_id() );
 		$this->assertNull( $manager->get_provider( 'missing' ) );
+	}
+
+	public function test_load_providers_applies_global_filter_before_consumer_filter(): void {
+		Functions\when( '__' )->returnArg();
+
+		$global   = $this->provider( 'from_global', true );
+		$consumer = $this->provider( 'from_consumer', true );
+
+		// The global filter fires first with the initial defaults + the
+		// consumer's table slug. It appends `from_global`.
+		Filters\expectApplied( 'wpb_access_control_register_providers' )
+			->once()
+			->with( \Mockery::type( 'array' ), 'my_plugin' )
+			->andReturnUsing(
+				static function ( array $providers ) use ( $global ) {
+					$providers[] = $global;
+					return $providers;
+				}
+			);
+
+		// The consumer-specific filter fires next and receives whatever the
+		// global filter returned. It appends `from_consumer`.
+		Filters\expectApplied( 'my_plugin_providers' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( array $providers ) use ( $global ): bool {
+						// Must include the provider added by the global filter.
+						foreach ( $providers as $p ) {
+							if ( $p === $global ) {
+								return true;
+							}
+						}
+						return false;
+					}
+				)
+			)
+			->andReturnUsing(
+				static function ( array $providers ) use ( $consumer ) {
+					$providers[] = $consumer;
+					return $providers;
+				}
+			);
+
+		$manager = $this->make_bare_manager( 'my_plugin_providers', 'my_plugin' );
+		$manager->load_providers();
+
+		$ids = array_keys( $manager->get_providers() );
+		// Global-added provider must appear before consumer-added one — proves
+		// the global filter ran first and its result flowed into the consumer filter.
+		$global_pos   = array_search( 'from_global', $ids, true );
+		$consumer_pos = array_search( 'from_consumer', $ids, true );
+
+		$this->assertNotFalse( $global_pos, 'Global-registered provider must be indexed' );
+		$this->assertNotFalse( $consumer_pos, 'Consumer-registered provider must be indexed' );
+		$this->assertLessThan( $consumer_pos, $global_pos, 'Global filter must fire before consumer filter' );
+	}
+
+	/**
+	 * Build an AccessControlManager instance without invoking the constructor
+	 * (which would spin up a real RuleQuery + BerlinDB table). Only the
+	 * `providers_filter`, `table_slug`, and empty `providers` state are set,
+	 * which is enough to exercise load_providers().
+	 */
+	private function make_bare_manager( string $providers_filter, string $table_slug ): AccessControlManager {
+		$reflection = new \ReflectionClass( AccessControlManager::class );
+		$manager    = $reflection->newInstanceWithoutConstructor();
+
+		foreach (
+			array(
+				'providers_filter' => $providers_filter,
+				'table_slug'       => $table_slug,
+				'providers'        => array(),
+			) as $property => $value
+		) {
+			$prop = $reflection->getProperty( $property );
+			$prop->setAccessible( true );
+			$prop->setValue( $manager, $value );
+		}
+
+		return $manager;
 	}
 }
