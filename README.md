@@ -314,11 +314,12 @@ if ( ! $allowed ) {
 
 | Step | Condition | Result |
 |------|-----------|--------|
-| 1 | `access_control_key` is empty or `'everyone'` | **Allow** |
-| 2 | User has `manage_options` (administrator) | **Always allow** |
-| 3 | User ID = 0 (unauthenticated) | **Deny** |
-| 4 | No provider registered for the configured key | **Deny** |
-| 5 | `provider->user_has_access()` | Allow or **Deny** |
+| 1 | `access_control_key` is empty or `'everyone'` | **Allow** (public — no login required) |
+| 2 | `access_control_key` is `'authenticated'` | **Allow** iff `$user_id > 0`, else **Deny** |
+| 3 | User has `manage_options` (administrator) | **Always allow** |
+| 4 | User ID = 0 (unauthenticated) | **Deny** |
+| 5 | No provider registered for the configured key | **Deny** |
+| 6 | `provider->user_has_access()` | Allow or **Deny** |
 
 ---
 
@@ -330,12 +331,13 @@ wires itself to the `wpb-ac/v1` REST API automatically.
 
 ### What it looks like
 
-The component has four states driven by a single **"Who can access"** dropdown:
+The component is driven by a single **"Who can access"** dropdown:
 
 | Dropdown option | Extra UI |
 |---|---|
 | **No user access added by admin** | Nothing — resource is locked (except admins) |
-| **Everyone (no restriction)** | Nothing — all users can access |
+| **Public (no login required)** | Nothing — anyone can access, including anonymous visitors |
+| **Any logged-in user** | Nothing — any authenticated WordPress user passes, no role/capability check |
 | **WordPress Role** | Checkboxes for each WordPress role |
 | **WordPress Capability** | Checkboxes for each WordPress capability (discovered across all roles) |
 | **Users** | Search-as-you-type field + selected-user tags |
@@ -487,8 +489,11 @@ $rule = $query->get_rule( 'my-namespace', 'my-resource' );
 // Save a rule (inputs are sanitized internally).
 $query->set_rule( 'my-namespace', 'my-resource', 'wp_role', ['editor', 'author'] );
 
-// Allow everyone.
+// Allow everyone (public — no login required).
 $query->set_rule( 'my-namespace', 'my-resource', 'everyone', [] );
+
+// Require login (any authenticated user, no role/capability check).
+$query->set_rule( 'my-namespace', 'my-resource', 'authenticated', [] );
 
 // Clear a rule (reverts to "no restriction configured").
 $query->clear_rule( 'my-namespace', 'my-resource' );
@@ -978,7 +983,7 @@ the name and the `wpb_ac_{slug}_db_version` option differ.
 | `namespace` | VARCHAR(100) NOT NULL | Plugin-scoped prefix, e.g. `mcp`, `procureco/v1` |
 | `key` | VARCHAR(255) NOT NULL | Resource identifier within the namespace |
 | `access_control_key` | VARCHAR(100) NOT NULL | Rule type slug — same for every row of a `(ns, key)` pair |
-| `access_control_value` | VARCHAR(255) NOT NULL | One option per row; `''` for the `everyone` sentinel |
+| `access_control_value` | VARCHAR(255) NOT NULL | One option per row; `''` for the `everyone` / `authenticated` sentinels |
 | `created_at` | DATETIME | BerlinDB-managed on INSERT |
 | `updated_at` | DATETIME | BerlinDB-managed on UPDATE |
 
@@ -990,6 +995,7 @@ Indexes: `PRIMARY KEY (id)` · `UNIQUE (namespace, key(191), access_control_valu
 |---|---|
 | No rule configured | **No rows** for that `(namespace, key)` |
 | `everyone` | One row: `access_control_key='everyone'`, `access_control_value=''` |
+| `authenticated` | One row: `access_control_key='authenticated'`, `access_control_value=''` |
 | `wp_role` + `['editor','author']` | Two rows, both `access_control_key='wp_role'`; values `'editor'`, `'author'` |
 | `wp_user` + `['1','42']` | Two rows, both `access_control_key='wp_user'`; values `'1'`, `'42'` |
 

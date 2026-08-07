@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.1.0
+
+Adds a new sentinel rule type that lets admins require a login without picking specific roles or users, and renames the public option so it is unambiguous.
+
+### Added
+
+- **`AccessControlManager::TYPE_AUTHENTICATED` (`'authenticated'`) sentinel.** `user_has_access()` returns `true` when the caller is logged in (`$user_id > 0`) and `false` otherwise, firing `wpb_access_control_denied` on the deny path. Stored as a single sentinel row like `everyone`.
+- **"Any logged-in user" option in the React dropdown.** Renders below the renamed public option. `set_rule()` / `normalize_input()` handle the new key alongside `everyone`.
+
+### Changed
+
+- **Dropdown label.** `Everyone (no restriction)` → `Public (no login required)` — the previous phrasing was ambiguous about anonymous access.
+- **REST `ac_key` description** updated to mention `authenticated`.
+- **Access hierarchy docblock** updated to document the new step.
+
+### Migration
+
+None required. `everyone` continues to behave identically (public, no login). Existing rows are untouched. Consumer plugins that vendor the built assets need to re-sync and rebuild to pick up the new dropdown option.
+
 ## 3.0.0
 
 **BREAKING.** The two plugin-dependent providers shipped in v1.4.0 / v1.5.0 have been extracted into a separate WordPress add-on plugin — **AcrossAI User Access Pro** ([`acrossai/user-access-pro`](https://github.com/acrossai-co/user-access-pro)) — along with eight new integrations. The library now ships only the three WordPress-native providers (`wp_role`, `wp_user`, `wp_capability`) plus a new extension point for third-party add-ons.
