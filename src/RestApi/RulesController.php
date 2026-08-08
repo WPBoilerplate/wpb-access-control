@@ -128,7 +128,7 @@ class RulesController extends WP_REST_Controller {
 						$this->get_ns_key_args(),
 						array(
 							'ac_key'     => array(
-								'description'       => __( 'Rule type slug. Empty string or "everyone" to clear restrictions; otherwise a registered provider ID.', 'wpb-access-control' ),
+								'description'       => __( 'Rule type slug. Empty string or "everyone" to allow public access; "authenticated" to require login; otherwise a registered provider ID.', 'wpb-access-control' ),
 								'type'              => 'string',
 								'default'           => '',
 								'sanitize_callback' => 'sanitize_key',

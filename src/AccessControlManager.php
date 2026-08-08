@@ -29,11 +29,12 @@
  *
  * Access hierarchy (evaluated by user_has_access)
  * ------------------------------------------------
- *   1. access_control_key empty or 'everyone'    → allow.
- *   2. User has manage_options (administrator)   → always allow.
- *   3. User not authenticated (id = 0)           → deny.
- *   4. No provider found for the configured key  → deny.
- *   5. provider->user_has_access()               → allow or deny.
+ *   1. access_control_key empty or 'everyone'    → allow (public, no login required).
+ *   2. access_control_key 'authenticated'        → allow iff user is logged in.
+ *   3. User has manage_options (administrator)   → always allow.
+ *   4. User not authenticated (id = 0)           → deny.
+ *   5. No provider found for the configured key  → deny.
+ *   6. provider->user_has_access()               → allow or deny.
  *
  * @package WPBoilerplate\AccessControl
  * @since   1.0.0
@@ -56,7 +57,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class AccessControlManager {
 
-	const TYPE_EVERYONE = 'everyone';
+	const TYPE_EVERYONE      = 'everyone';
+	const TYPE_AUTHENTICATED = 'authenticated';
 
 	/**
 	 * WordPress filter tag used to collect provider instances.
@@ -258,6 +260,14 @@ class AccessControlManager {
 
 		if ( '' === $ac_key || self::TYPE_EVERYONE === $ac_key ) {
 			return true;
+		}
+
+		if ( self::TYPE_AUTHENTICATED === $ac_key ) {
+			if ( $user_id > 0 ) {
+				return true;
+			}
+			do_action( 'wpb_access_control_denied', $user_id, $namespace, $key, $ac_key, $options );
+			return false;
 		}
 
 		if ( $user_id && user_can( $user_id, 'manage_options' ) ) {

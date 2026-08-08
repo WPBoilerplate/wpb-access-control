@@ -203,9 +203,10 @@ class RuleQuery extends Query {
 	 * Insert or replace the access rule for a (namespace, key) pair.
 	 *
 	 * Atomically replaces all existing rows for the pair with the new rule:
-	 *   - `''`        → purge only (no rows = "no restriction configured").
-	 *   - `'everyone'`→ one sentinel row with an empty value.
-	 *   - anything else → one row per option in $ac_options.
+	 *   - `''`             → purge only (no rows = "no restriction configured").
+	 *   - `'everyone'`     → one sentinel row with an empty value.
+	 *   - `'authenticated'`→ one sentinel row with an empty value.
+	 *   - anything else    → one row per option in $ac_options.
 	 *
 	 * $ac_key is sanitized with sanitize_key() (machine identifier). Each
 	 * element of $ac_options is sanitized with sanitize_text_field() so that
@@ -216,7 +217,7 @@ class RuleQuery extends Query {
 	 *
 	 * @param string   $namespace  Resource namespace.
 	 * @param string   $key        Resource key.
-	 * @param string   $ac_key     Rule type slug ('', 'everyone', 'wp_role', 'wp_user', …).
+	 * @param string   $ac_key     Rule type slug ('', 'everyone', 'authenticated', 'wp_role', 'wp_user', …).
 	 * @param string[] $ac_options Option values (role slugs, user ID strings, etc.).
 	 *
 	 * @return bool True on success, false if any write fails.
@@ -238,7 +239,7 @@ class RuleQuery extends Query {
 			return true;
 		}
 
-		if ( 'everyone' === $ac_key ) {
+		if ( 'everyone' === $ac_key || 'authenticated' === $ac_key ) {
 			return (bool) $this->add_item(
 				array(
 					'namespace'            => $namespace,
@@ -386,7 +387,7 @@ class RuleQuery extends Query {
 		$key     = sanitize_key( $key );
 		$options = array_values( array_map( 'sanitize_text_field', $options ) );
 
-		if ( '' === $key || 'everyone' === $key ) {
+		if ( '' === $key || 'everyone' === $key || 'authenticated' === $key ) {
 			$options = array();
 		}
 

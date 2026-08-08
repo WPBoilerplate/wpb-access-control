@@ -1,13 +1,14 @@
 /**
  * "Who can access" dropdown.
  *
- * Renders the two static options (no-access + everyone) followed by any
- * registered providers returned by the REST API.
+ * Renders the static sentinel options (no-access, public, authenticated)
+ * followed by any registered providers returned by the REST API.
  */
 
 const STATIC_OPTIONS = [
 	{ value: '', label: 'No user access added by admin' },
-	{ value: 'everyone', label: 'Everyone (no restriction)' },
+	{ value: 'everyone', label: 'Public (no login required)' },
+	{ value: 'authenticated', label: 'Any logged-in user' },
 ];
 
 /**
