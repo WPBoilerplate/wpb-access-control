@@ -11,7 +11,7 @@
 | Composer package | `wpboilerplate/wpb-access-control` — type `library` |
 | PHP namespace root | `WPBoilerplate\AccessControl\` (PSR-4 from `src/`) |
 | Version / PHP / WP | 1.0.0 / min PHP 7.4 / min WP 5.9 |
-| PHP autoloader | `automattic/jetpack-autoloader ^5.0` (mandatory) |
+| PHP autoloader | `automattic/jetpack-autoloader ^6.0` (mandatory) |
 | JS build tool | `@wordpress/scripts ^32` (devDep only) |
 
 ---
