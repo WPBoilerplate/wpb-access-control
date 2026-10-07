@@ -35,7 +35,7 @@ The library owns its own database table (managed by **BerlinDB**), ships WordPre
 | PHP | 7.4+ |
 | WordPress | 5.9+ |
 | Node.js | 18+ *(only needed if you rebuild the JS assets)* |
-| `automattic/jetpack-autoloader` | **^5.0** (mandatory — see below) |
+| `automattic/jetpack-autoloader` | **^6.0** (mandatory — see below) |
 | `berlindb/core` | **^2.0** (DB layer) |
 
 ---
@@ -51,7 +51,7 @@ Your `composer.json` must include Jetpack Autoloader:
 ```json
 {
     "require": {
-        "automattic/jetpack-autoloader": "^5.0",
+        "automattic/jetpack-autoloader": "^6.0",
         "berlindb/core": "^2.0",
         "wpboilerplate/wpb-access-control": "^1.0"
     },

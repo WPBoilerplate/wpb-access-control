@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.2.0
+
+Dependency-only release: requires Jetpack Autoloader 6.x.
+
+### Changed
+
+- **`automattic/jetpack-autoloader` constraint widened to `^6.0`** (was `^5.0`). v6.0.0 only raised that package's own minimum PHP to 7.4 — already covered by this library's `php: >=8.1` — and v6.0.1 fixes manifest version-tie resolution so a plugin directory retired by a host deploy can no longer win a tie. No API changes here.
+- **README / AGENTS.md** requirement tables and the install snippet now state `^6.0`.
+
+### Migration
+
+Consumer plugins that pin `automattic/jetpack-autoloader` in their own `composer.json` must widen the constraint to `^6.0` (or `^5.0 || ^6.0`) before upgrading, otherwise Composer reports an unresolvable conflict. Nothing else to do — no stored data, filters, or class names changed.
+
 ## 3.1.0
 
 Adds a new sentinel rule type that lets admins require a login without picking specific roles or users, and renames the public option so it is unambiguous.
